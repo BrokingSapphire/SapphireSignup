@@ -7,8 +7,8 @@ export function middleware(request: NextRequest) {
 
   // Define the routes that require authentication (protected routes)
   const protectedRoutes = [
-    '/signup/esign-success',
-    '/signup/digilocker-success'
+    '/esign-success',
+    '/digilocker-success'
   ]
 
   // Check if the current route is in the protected routes list
@@ -26,7 +26,7 @@ export function middleware(request: NextRequest) {
 
   // If no authToken is found, redirect to login or home page
   if (!authToken || !authToken.value) {
-    const loginUrl = new URL('/signup', request.url)
+    const loginUrl = new URL('/', request.url)
     return NextResponse.redirect(loginUrl)
   }
 
@@ -37,7 +37,7 @@ export function middleware(request: NextRequest) {
 // Configure which routes this middleware should run on
 export const config = {
   matcher: [
-    '/signup/esign-success',
-    '/signup/digilocker-success',
+    '/esign-success',
+    '/digilocker-success',
   ],
 }
