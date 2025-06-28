@@ -48,6 +48,9 @@ const AadhaarVerification = ({
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const windowCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Component mount tracking for cleanup
+  const isComponentMounted = useRef(true);
+  
   // Aadhaar mismatch form state
   const [mismatchFormData, setMismatchFormData] = useState({
     full_name: getFullNameFromStorage(),
@@ -70,6 +73,15 @@ const AadhaarVerification = ({
     refetchStep 
   } = useCheckpoint();
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      isComponentMounted.current = false;
+      cleanupPolling();
+      cleanupPopup();
+    };
+  }, []);
+
   // Add keyboard event listener for Enter key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -87,7 +99,7 @@ const AadhaarVerification = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [currentStep, isLoading, digilockerUrl]);
+  }, [currentStep, isLoading]);
 
   // Enhanced full_name monitoring
   useEffect(() => {
@@ -194,7 +206,9 @@ const AadhaarVerification = ({
         // If it's a completion message, trigger a check
         if (event.data?.type === 'DIGILOCKER_COMPLETED') {
           setTimeout(() => {
-            refetchStep(CheckpointStep.AADHAAR);
+            if (isComponentMounted.current) {
+              refetchStep(CheckpointStep.AADHAAR);
+            }
           }, 1000);
         }
       }
@@ -206,20 +220,6 @@ const AadhaarVerification = ({
       window.removeEventListener('message', handleMessage);
     };
   }, [refetchStep]);
-
-  // Start background polling after initialization
-  useEffect(() => {
-    // Only auto-start polling if DigiLocker window is open and we have a URL
-    if (isInitialized && digilockerUrl && digilockerWindowRef.current && !digilockerWindowRef.current.closed && !isStepCompleted(CheckpointStep.AADHAAR)) {
-      startBackgroundPolling();
-    }
-
-    // Cleanup polling on unmount
-    return () => {
-      cleanupPolling();
-      cleanupPopup();
-    };
-  }, [isInitialized, digilockerUrl, isStepCompleted]);
 
   const cleanupPolling = () => {
     if (pollIntervalRef.current) {
@@ -246,96 +246,6 @@ const AadhaarVerification = ({
     }
   };
 
-  const initializeDigilocker = async () => {
-    console.log("initializeDigilocker called - isLoading:", isLoading, "digilockerUrl:", digilockerUrl);
-    
-    // Prevent multiple simultaneous calls
-    if (isLoading || digilockerUrl) {
-      console.log("Already initializing or URL exists, skipping...");
-      return Promise.resolve();
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Updated redirect URL to the success page
-      const redirectUrl = `${window.location.origin}/digilocker-success`;
-
-      // Get the auth token
-      const authToken = Cookies.get('authToken');
-      
-      if (!authToken) {
-        setError("Authentication token not found. Please restart the process.");
-        setIsLoading(false);
-        return Promise.reject(new Error("No auth token"));
-      }
-
-      console.log("Making API call to initialize DigiLocker session...");
-
-      // Initialize DigiLocker session
-      const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-        {
-          step: "aadhaar_uri",
-          redirect: redirectUrl
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${authToken}`
-          },
-        }
-      );
-
-      console.log("DigiLocker initialization response:", response.data);
-
-      if (response.data?.data?.uri) {
-        console.log("DigiLocker session initialized with URL:", response.data.data.uri);
-        setDigilockerUrl(response.data.data.uri);
-        setIsInitialized(true);
-        return Promise.resolve();
-      } else {
-        setError("Failed to initialize DigiLocker. Please try again.");
-        return Promise.reject(new Error("No URI received"));
-      }
-    } catch (err: unknown) {
-      const error = err as {
-        response?: {
-          data?: { message?: string; error?: { message?: string } };
-          status?: number;
-        };
-        request?: unknown;
-      };
-
-      console.error("DigiLocker initialization error:", err);
-      if (error.response) {
-        if (error.response.data?.message) {
-          setError(`Error: ${error.response.data.message}`);
-        } else if (error.response.data?.error?.message) {
-          setError(`Error: ${error.response.data.error.message}`);
-        } else if (error.response.status === 400) {
-          setError("Invalid request. Please try again.");
-        } else if (error.response.status === 401) {
-          setError("Authentication failed. Please restart the process.");
-        } else if (error.response.status === 403) {
-          setError("Access denied. Please check your authentication and try again.");
-        } else if (error.response.status === 500) {
-          setError("Server error. Please try again in a few moments.");
-        } else {
-          setError(`Server error (${error.response.status}). Please try again.`);
-        }
-      } else if (error.request) {
-        setError("Network error. Please check your connection and try again.");
-      } else {
-        setError("An unexpected error occurred. Please try again.");
-      }
-      return Promise.reject(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const startBackgroundPolling = () => {
     console.log("Starting background polling for Aadhaar completion...");
     
@@ -343,6 +253,11 @@ const AadhaarVerification = ({
     cleanupPolling();
     
     pollIntervalRef.current = setInterval(async () => {
+      if (!isComponentMounted.current) {
+        cleanupPolling();
+        return;
+      }
+
       try {
         // Get the auth token for polling
         const authToken = Cookies.get('authToken');
@@ -374,19 +289,21 @@ const AadhaarVerification = ({
           // Check for Aadhaar mismatch in POST response
           if (completeResponse.data?.data?.requires_additional_verification) {
             cleanupPolling();
-            setMismatchInfo({
-              pan_masked_aadhaar: completeResponse.data.data.pan_masked_aadhaar || panMaskedAadhaar,
-              digilocker_masked_aadhaar: completeResponse.data.data.digilocker_masked_aadhaar
-            });
-            setCurrentStep('mismatch');
-            
-            toast.warning("Aadhaar mismatch detected. Please provide additional details.");
-            
-            // Clean up the popup window
-            cleanupPopup();
-            
-            // Refetch the mismatch checkpoint to update the hook
-            refetchStep(CheckpointStep.AADHAAR_MISMATCH_DETAILS);
+            if (isComponentMounted.current) {
+              setMismatchInfo({
+                pan_masked_aadhaar: completeResponse.data.data.pan_masked_aadhaar || panMaskedAadhaar,
+                digilocker_masked_aadhaar: completeResponse.data.data.digilocker_masked_aadhaar
+              });
+              setCurrentStep('mismatch');
+              
+              toast.warning("Aadhaar mismatch detected. Please provide additional details.");
+              
+              // Clean up the popup window
+              cleanupPopup();
+              
+              // Refetch the mismatch checkpoint to update the hook
+              refetchStep(CheckpointStep.AADHAAR_MISMATCH_DETAILS);
+            }
             return;
           }
           
@@ -423,20 +340,24 @@ const AadhaarVerification = ({
           // Aadhaar completed successfully - same validation as useCheckpoint
           cleanupPolling();
           
-          console.log("Aadhaar completed successfully detected by polling!");
-          toast.success("Aadhaar verification completed successfully!");
-          
-          // Clean up the popup window
-          cleanupPopup();
-          
-          // Refetch Aadhaar step to update the hook
-          refetchStep(CheckpointStep.AADHAAR);
-          
-          // Wait a bit for the hook to update, then advance
-          setTimeout(() => {
-            console.log("Auto-advancing to next step after Aadhaar completion");
-            onNext();
-          }, 1000);
+          if (isComponentMounted.current) {
+            console.log("Aadhaar completed successfully detected by polling!");
+            toast.success("Aadhaar verification completed successfully!");
+            
+            // Clean up the popup window
+            cleanupPopup();
+            
+            // Refetch Aadhaar step to update the hook
+            refetchStep(CheckpointStep.AADHAAR);
+            
+            // Wait a bit for the hook to update, then advance
+            setTimeout(() => {
+              if (isComponentMounted.current) {
+                console.log("Auto-advancing to next step after Aadhaar completion");
+                onNext();
+              }
+            }, 1000);
+          }
         }
         
       } catch (err: unknown) {
@@ -472,75 +393,174 @@ const AadhaarVerification = ({
 
     // Stop polling after 7 minutes (timeout)
     setTimeout(() => {
-      cleanupPolling();
-      console.log("Aadhaar polling timeout after 7 minutes");
+      if (isComponentMounted.current) {
+        cleanupPolling();
+        console.log("Aadhaar polling timeout after 7 minutes");
+      }
     }, 7 * 60 * 1000);
   };
 
-  const handleDigilockerClick = () => {
+  // Combined DigiLocker initialization and popup opening
+  const handleDigilockerClick = async () => {
     // If already completed, just proceed to next step
     if (isCompleted || isStepCompleted(CheckpointStep.AADHAAR)) {
       onNext();
       return;
     }
 
-    // If no URL yet, initialize DigiLocker first
-    if (!digilockerUrl) {
-      initializeDigilocker().then(() => {
-        // After initialization, open the URL if available
-        if (digilockerUrl) {
-          openDigilockerPopup();
+    // Prevent multiple clicks while processing
+    if (isLoading) {
+      console.log("Already processing, ignoring click");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let urlToOpen = digilockerUrl;
+
+      // If no URL yet, initialize DigiLocker first
+      if (!urlToOpen) {
+        console.log("No DigiLocker URL found, initializing...");
+        
+        // Get the auth token
+        const authToken = Cookies.get('authToken');
+        
+        if (!authToken) {
+          setError("Authentication token not found. Please restart the process.");
+          return;
         }
-      });
-      return;
-    }
 
-    // Open DigiLocker popup
-    openDigilockerPopup();
-  };
+        // Updated redirect URL to the success page
+        const redirectUrl = `${window.location.origin}/digilocker-success`;
 
-  const openDigilockerPopup = () => {
-    if (!digilockerUrl) {
-      setError("DigiLocker URL not available. Please try again.");
-      return;
-    }
+        console.log("Making API call to initialize DigiLocker session...");
 
-    console.log("Opening DigiLocker URL:", digilockerUrl);
+        // Initialize DigiLocker session
+        const response = await axios.post(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+          {
+            step: "aadhaar_uri",
+            redirect: redirectUrl
+          },
+          {
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`
+            },
+            timeout: 30000, // 30 second timeout
+          }
+        );
 
-    // Open DigiLocker URL in new window/tab with specific name and features
-    const digilockerWindow = window.open(
-      digilockerUrl,
-      'digilocker', // Named window for identification
-      'width=800,height=600,scrollbars=yes,resizable=yes,location=yes,menubar=no,toolbar=no,status=no'
-    );
+        console.log("DigiLocker initialization response:", response.data);
 
-    if (!digilockerWindow) {
-      setError("Please allow popups for DigiLocker to work. Then try again.");
-      return;
-    }
-
-    // Store reference to the window
-    digilockerWindowRef.current = digilockerWindow;
-
-    // Clear any existing window check interval
-    if (windowCheckIntervalRef.current) {
-      clearInterval(windowCheckIntervalRef.current);
-    }
-
-    // Monitor if the window is closed manually
-    windowCheckIntervalRef.current = setInterval(() => {
-      if (digilockerWindow.closed) {
-        clearInterval(windowCheckIntervalRef.current!);
-        windowCheckIntervalRef.current = null;
-        digilockerWindowRef.current = null;
-        console.log("DigiLocker window was closed");
+        if (response.data?.data?.uri) {
+          urlToOpen = response.data.data.uri;
+          console.log("DigiLocker session initialized with URL:", urlToOpen);
+          setDigilockerUrl(urlToOpen);
+          setIsInitialized(true);
+        } else {
+          setError("Failed to initialize DigiLocker. Please try again.");
+          return;
+        }
       }
-    }, 1000);
 
-    // Start polling when popup opens
-    startBackgroundPolling();
+      // Now open the popup with the URL we have
+      console.log("Opening DigiLocker URL:", urlToOpen);
 
-    toast.success("DigiLocker window opened. Complete the process there.");
+      const digilockerWindow = window.open(
+        urlToOpen,
+        'digilocker',
+        'width=800,height=600,scrollbars=yes,resizable=yes,location=yes,menubar=no,toolbar=no,status=no'
+      );
+
+      if (!digilockerWindow || digilockerWindow.closed || typeof digilockerWindow.closed === 'undefined') {
+        // Popup was blocked, offer alternative
+        setError("Popup was blocked. Please allow popups for this site or try opening DigiLocker manually.");
+        
+        // Offer manual redirect option
+        setTimeout(() => {
+          if (confirm("Popup blocked. Would you like to open DigiLocker in this tab instead?")) {
+            window.location.href = urlToOpen;
+          }
+        }, 1000);
+        return;
+      }
+
+      // Store reference to the window
+      digilockerWindowRef.current = digilockerWindow;
+
+      // Clear any existing window check interval
+      if (windowCheckIntervalRef.current) {
+        clearInterval(windowCheckIntervalRef.current);
+      }
+
+      // Monitor if the window is closed manually
+      windowCheckIntervalRef.current = setInterval(() => {
+        if (!isComponentMounted.current) {
+          if (windowCheckIntervalRef.current) {
+            clearInterval(windowCheckIntervalRef.current);
+            windowCheckIntervalRef.current = null;
+          }
+          return;
+        }
+
+        if (digilockerWindow.closed) {
+          clearInterval(windowCheckIntervalRef.current!);
+          windowCheckIntervalRef.current = null;
+          digilockerWindowRef.current = null;
+          console.log("DigiLocker window was closed");
+        }
+      }, 1000);
+
+      // Start polling when popup opens
+      startBackgroundPolling();
+
+      toast.success("DigiLocker window opened. Complete the process there.");
+
+    } catch (err: unknown) {
+      if (!isComponentMounted.current) return;
+
+      const error = err as {
+        response?: {
+          data?: { message?: string; error?: { message?: string } };
+          status?: number;
+        };
+        request?: unknown;
+        code?: string;
+      };
+
+      console.error("DigiLocker error:", err);
+      
+      if (error.code === 'ECONNABORTED') {
+        setError("Request timeout. Please check your internet connection and try again.");
+      } else if (error.response) {
+        if (error.response.data?.message) {
+          setError(`Error: ${error.response.data.message}`);
+        } else if (error.response.data?.error?.message) {
+          setError(`Error: ${error.response.data.error.message}`);
+        } else if (error.response.status === 400) {
+          setError("Invalid request. Please try again.");
+        } else if (error.response.status === 401) {
+          setError("Authentication failed. Please restart the process.");
+        } else if (error.response.status === 403) {
+          setError("Access denied. Please check your authentication and try again.");
+        } else if (error.response.status === 500) {
+          setError("Server error. Please try again in a few moments.");
+        } else {
+          setError(`Server error (${error.response.status}). Please try again.`);
+        }
+      } else if (error.request) {
+        setError("Network error. Please check your connection and try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      if (isComponentMounted.current) {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleRetry = () => {
@@ -607,9 +627,13 @@ const AadhaarVerification = ({
         refetchStep(CheckpointStep.AADHAAR_MISMATCH_DETAILS);
         refetchStep(CheckpointStep.AADHAAR);
         
-        // Auto-advance after 2 seconds
+        toast.success("Additional details submitted successfully!");
+        
+        // Auto-advance after 1 second
         setTimeout(() => {
-          onNext();
+          if (isComponentMounted.current) {
+            onNext();
+          }
         }, 1000);
       } else {
         toast.error("Failed to submit additional details. Please try again.");
@@ -624,7 +648,9 @@ const AadhaarVerification = ({
       
       toast.error(errorMessage);
     } finally {
-      setIsSubmittingMismatch(false);
+      if (isComponentMounted.current) {
+        setIsSubmittingMismatch(false);
+      }
     }
   };
 
@@ -643,11 +669,11 @@ const AadhaarVerification = ({
       <div className="mx-auto -mt-28 sm:mt-0 pt-20">
         <FormHeading
           title="Verify Aadhaar (DigiLocker)"
-          description="Initializing DigiLocker session..."
+          description="Setting up DigiLocker session..."
         />
         <div className="flex items-center justify-center h-40">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-          <span className="ml-3 text-gray-600">Setting up DigiLocker...</span>
+          <span className="ml-3 text-gray-600">Initializing DigiLocker...</span>
         </div>
       </div>
     );
@@ -846,7 +872,7 @@ const AadhaarVerification = ({
         {isLoading && (
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
         )}
-        {shouldShowCompletedState ? "Continue to Next Step" : (isLoading ? "Loading..." : "Proceed to DigiLocker")}
+        {shouldShowCompletedState ? "Continue to Next Step" : (isLoading ? "Setting up DigiLocker..." : "Proceed to DigiLocker")}
       </Button>
 
       <div className="hidden lg:block mt-4 text-center text-xs text-gray-600">
