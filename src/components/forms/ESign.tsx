@@ -167,7 +167,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
 
     try {
       // Updated redirect URL to the success page
-      const redirectUrl = `${window.location.origin}/signup/esign-success`;
+      const redirectUrl = `${window.location.origin}/esign-success`;
 
       // Get the auth token
       const authToken = Cookies.get('authToken');

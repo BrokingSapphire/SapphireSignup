@@ -260,7 +260,7 @@ const AadhaarVerification = ({
 
     try {
       // Updated redirect URL to the success page
-      const redirectUrl = `${window.location.origin}/signup/digilocker-success`;
+      const redirectUrl = `${window.location.origin}/digilocker-success`;
 
       // Get the auth token
       const authToken = Cookies.get('authToken');
