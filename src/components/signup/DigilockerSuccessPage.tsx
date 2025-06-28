@@ -34,7 +34,7 @@ const DigilockerSuccessPage: React.FC = () => {
             attemptClose();
           } else {
             // Redirect to main signup page
-            router.push('/signup');
+            router.push('/digilocker-success');
           }
           return 0;
         }

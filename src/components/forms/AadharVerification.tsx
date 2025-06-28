@@ -716,7 +716,7 @@ const AadhaarVerification = ({
           </Button>
         </form>
 
-        <div className="text-center text-xs text-gray-600 mt-6">
+        <div className="hidden lg:block text-center text-xs text-gray-600 mt-6">
           <p>Please ensure all details match exactly with your Aadhaar card.</p>
         </div>
       </div>
@@ -849,7 +849,7 @@ const AadhaarVerification = ({
         {shouldShowCompletedState ? "Continue to Next Step" : (isLoading ? "Loading..." : "Proceed to DigiLocker")}
       </Button>
 
-      <div className="hidden sm:block mt-4 text-center text-xs text-gray-600">
+      <div className="hidden lg:block mt-4 text-center text-xs text-gray-600">
         <p>
           Clicking the button will open DigiLocker in a new window. 
           Complete the process there and this page will automatically proceed to the next step.
