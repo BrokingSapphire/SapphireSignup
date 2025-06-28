@@ -31,6 +31,27 @@ interface FormErrors {
   accountType?: string;
 }
 
+// Razorpay IFSC API Response Type
+interface IFSCApiResponse {
+  ISO3166: string;
+  MICR: string;
+  DISTRICT: string;
+  UPI: boolean;
+  CENTRE: string;
+  ADDRESS: string;
+  RTGS: boolean;
+  STATE: string;
+  BRANCH: string;
+  NEFT: boolean;
+  SWIFT: string | null;
+  CONTACT: string;
+  CITY: string;
+  IMPS: boolean;
+  BANK: string;
+  BANKCODE: string;
+  IFSC: string;
+}
+
 interface BankInfo {
   bankName?: string;
   branch?: string;
@@ -59,9 +80,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     accountType: "",
   });
 
-  // New state for IFSC API
+  // IFSC API state
   const [bankInfo, setBankInfo] = useState<BankInfo>({});
   const [isLoadingBankInfo, setIsLoadingBankInfo] = useState(false);
+  const [ifscError, setIfscError] = useState<string | null>(null);
 
   // Define a type for the bank data received from the API
   interface ApiBankData {
@@ -85,13 +107,26 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     };
   };
 
-  // Fetch bank details from IFSC API
+  // IFSC Code validation
+  const validateIFSCCode = (ifscCode: string): boolean => {
+    // IFSC format: 4 letters + 1 zero + 6 alphanumeric characters
+    const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+    return ifscRegex.test(ifscCode);
+  };
+
+  // Fetch bank details from Razorpay IFSC API
   const fetchBankDetails = async (ifscCode: string) => {
-    if (!ifscCode || ifscCode.length !== 11) return;
+    if (!ifscCode || ifscCode.length !== 11 || !validateIFSCCode(ifscCode)) {
+      setBankInfo({});
+      setIfscError(null);
+      return;
+    }
 
     setIsLoadingBankInfo(true);
+    setIfscError(null);
+    
     try {
-      const response = await axios.get(`https://ifsc.razorpay.com/${ifscCode}`);
+      const response = await axios.get<IFSCApiResponse>(`https://ifsc.razorpay.com/${ifscCode}`);
       
       if (response.data) {
         setBankInfo({
@@ -100,10 +135,17 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           city: response.data.CITY,
           state: response.data.STATE,
         });
+        
+        // Clear IFSC error if API call is successful
+        setErrors(prev => ({ ...prev, ifscCode: undefined }));
       }
     } catch (error) {
       console.log("IFSC API error:", error);
       setBankInfo({});
+      setIfscError("Invalid IFSC code or bank not found");
+      
+      // Set IFSC error in form errors
+      setErrors(prev => ({ ...prev, ifscCode: "Invalid IFSC code or bank not found" }));
     } finally {
       setIsLoadingBankInfo(false);
     }
@@ -112,12 +154,23 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   // Effect to fetch bank details when IFSC code changes
   useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (formData.ifscCode && formData.ifscCode.length === 11 && /^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.ifscCode)) {
-        fetchBankDetails(formData.ifscCode);
+      if (formData.ifscCode && formData.ifscCode.length === 11) {
+        if (validateIFSCCode(formData.ifscCode)) {
+          fetchBankDetails(formData.ifscCode);
+        } else {
+          setBankInfo({});
+          setIfscError("Invalid IFSC code format");
+          setErrors(prev => ({ ...prev, ifscCode: "Invalid IFSC code format" }));
+        }
       } else {
         setBankInfo({});
+        setIfscError(null);
+        // Don't show error if user is still typing
+        if (formData.ifscCode.length > 0 && formData.ifscCode.length < 11) {
+          setErrors(prev => ({ ...prev, ifscCode: undefined }));
+        }
       }
-    }, 500); // Debounce for 500ms
+    }, 300); // Reduced debounce time for better UX
 
     return () => clearTimeout(timeoutId);
   }, [formData.ifscCode]);
@@ -140,9 +193,17 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    let processedValue = value;
+    
+    if (name === 'ifscCode') {
+      // Convert to uppercase and limit to 11 characters
+      processedValue = value.toUpperCase().slice(0, 11);
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      [name]: value.toUpperCase(), // Convert to uppercase for IFSC
+      [name]: processedValue,
     }));
 
     // Clear error when user starts typing
@@ -151,6 +212,11 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       [name]: undefined,
     }));
     setError(null);
+    
+    // Clear IFSC specific error
+    if (name === 'ifscCode') {
+      setIfscError(null);
+    }
   };
 
   const handleAccountTypeSelect = (accountType: string) => {
@@ -172,8 +238,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
     if (!formData.ifscCode) {
       newErrors.ifscCode = "IFSC Code is required";
-    } else if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.ifscCode)) {
-      newErrors.ifscCode = "Invalid IFSC Code format";
+    } else if (!validateIFSCCode(formData.ifscCode)) {
+      newErrors.ifscCode = "Invalid IFSC Code format (e.g., SBIN0001234)";
+    } else if (ifscError) {
+      newErrors.ifscCode = ifscError;
     }
 
     if (!formData.accountNumber) {
@@ -228,6 +296,17 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       return;
     }
 
+    // Don't allow submission if IFSC is loading or has error
+    if (isLoadingBankInfo) {
+      setError("Please wait for IFSC verification to complete");
+      return;
+    }
+
+    if (ifscError || !bankInfo.bankName) {
+      setError("Please enter a valid IFSC code");
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
@@ -252,12 +331,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         }
       );
 
-
       // Wait a moment for the data to be processed, then validate
       setTimeout(async () => {
         const isValid = await validateBankDetails();
         if (isValid) {
-          // toast.success("Bank account verified successfully!");
           setTimeout(() => {
             onNext();
           }, 1500);
@@ -305,11 +382,11 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return "Continue";
   };
 
-  const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType;
-  const canSubmit = isFormValid && !isSubmitting;
+  const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
+  const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo;
 
   return (
-    <div className="w-full -mt-28 sm:mt-4  max-w-2xl mx-auto  p-4">
+    <div className="w-full -mt-28 sm:mt-4 max-w-2xl mx-auto p-4">
       <FormHeading
         title="Bank Account Details"
         description="Seamlessly link your bank for smooth transactions."
@@ -329,7 +406,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
               onChange={handleChange}
               disabled={isSubmitting}
               className={`w-full p-2 border rounded ${
-                errors.ifscCode ? "border-red-500" : isCompleted && formData.ifscCode === originalData.ifscCode ? "border-gray-300" : "border-gray-300"
+                errors.ifscCode ? "border-red-500" : 
+                bankInfo.bankName ? "border-green-500" : 
+                "border-gray-300"
               } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
               placeholder="Enter IFSC Code (e.g., SBIN0001234)"
               maxLength={11}
@@ -339,24 +418,37 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
               </div>
             )}
+            {bankInfo.bankName && !isLoadingBankInfo && (
+              <div className="absolute right-3 top-2.5">
+                <div className="w-4 h-4 text-green-500">
+                  <svg fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            )}
           </div>
           {errors.ifscCode && (
             <p className="text-xs text-red-500">{errors.ifscCode}</p>
           )}
           
-          {/* Bank Info Display */}
-          {bankInfo.bankName && (
-            <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="text-sm">
-                <div className="font-medium text-blue-800">{bankInfo.bankName}</div>
-                {bankInfo.branch && (
-                  <div className="text-blue-700">{bankInfo.branch}</div>
-                )}
-                {(bankInfo.city || bankInfo.state) && (
-                  <div className="text-blue-600">
-                    {[bankInfo.city, bankInfo.state].filter(Boolean).join(", ")}
-                  </div>
-                )}
+          {/* Bank Info Display - Single Line */}
+          {bankInfo.bankName && !isLoadingBankInfo && (
+            <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
+              <div className="text-sm text-green-800">
+                <span className="font-medium">{bankInfo.bankName}</span>
+                {bankInfo.branch && <span> • {bankInfo.branch}</span>}
+                {bankInfo.city && <span> • {bankInfo.city}</span>}
+                {bankInfo.state && <span> • {bankInfo.state}</span>}
+              </div>
+            </div>
+          )}
+          
+          {/* IFSC Error Display */}
+          {ifscError && !isLoadingBankInfo && formData.ifscCode.length === 11 && (
+            <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
+              <div className="text-sm text-red-700">
+                {ifscError}
               </div>
             </div>
           )}
@@ -389,7 +481,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             }}
             disabled={isSubmitting}
             className={`w-full p-2 border rounded ${
-              errors.accountNumber ? "border-red-500" : isCompleted && formData.accountNumber === originalData.accountNumber ? "border-gray-300" : "border-gray-300"
+              errors.accountNumber ? "border-red-500" : 
+              isCompleted && formData.accountNumber === originalData.accountNumber ? "border-gray-300" : 
+              "border-gray-300"
             } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
             placeholder="Enter Account Number"
             maxLength={18}
@@ -437,16 +531,15 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           </div>
         )}
 
-        
         <Button
-            type="submit"
-            disabled={!canSubmit}
-            className={`bg-teal-800 w-full text-white p-6 rounded hover:bg-teal-900 ${
-              !canSubmit ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            {getButtonText()}
-          </Button>
+          type="submit"
+          disabled={!canSubmit}
+          className={`bg-teal-800 w-full text-white p-6 rounded hover:bg-teal-900 transition-opacity ${
+            !canSubmit ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          {getButtonText()}
+        </Button>
 
         <div className="text-center text-sm text-gray-600 mt-4">
           <p>
