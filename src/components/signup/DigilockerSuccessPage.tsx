@@ -84,7 +84,7 @@ const DigilockerSuccessPage: React.FC = () => {
     if (isPopup) {
       attemptClose();
     } else {
-      router.push('/signup');
+      router.push('https://signup.sapphirebroking.com');
     }
   };
 

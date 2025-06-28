@@ -64,7 +64,7 @@ const EsignSuccessPage: React.FC = () => {
           <Image 
             width={80} 
             height={64} 
-            src='/signup/e-sign.png' 
+            src='https://signup.sapphirebroking.com/e-sign.png' 
             alt="eSign Completed" 
             className="max-w-full h-auto rotate-90" 
           />
