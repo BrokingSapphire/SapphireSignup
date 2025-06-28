@@ -1,6 +1,5 @@
-// Enhanced BankAccountLinking component with name validation
 "use client"
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import FormHeading from "./FormHeading";
 import ManualBankDetails from "./ManualBankDetails";
 import UpiLinking from "./UpiLinking";
@@ -41,6 +40,23 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [bankData, setBankData] = useState<BankData | null>(null);
   const [isValidating, setIsValidating] = useState(false);
+  
+  // Refs for continue button
+  const continueButtonRef = useRef<HTMLButtonElement>(null);
+  const linkDifferentButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Add keyboard event listener for Enter key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Enter' && isCompleted && bankData && continueButtonRef.current) {
+        e.preventDefault();
+        continueButtonRef.current.click();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isCompleted, bankData]);
 
   // Check screen size on component mount and when window resizes
   useEffect(() => {
@@ -415,6 +431,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
             {/* Continue or Change Options */}
             <div className="mt-4 flex flex-col sm:flex-row gap-3">
               <button 
+                ref={continueButtonRef}
                 onClick={handleNext}
                 disabled={isValidating}
                 className={`flex-1 bg-teal-800 text-white px-4 py-2 rounded hover:bg-teal-900 transition-colors ${
@@ -424,11 +441,17 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
                 {isValidating ? 'Validating...' : 'Continue'}
               </button>
               <button 
+                ref={linkDifferentButtonRef}
                 onClick={() => handleMethodSelection("manual")}
                 className="flex-1 bg-gray-200 text-gray-800 px-4 py-2 rounded hover:bg-gray-300 transition-colors"
               >
                 Link Different Account
               </button>
+            </div>
+            
+            {/* Add Enter key instruction */}
+            <div className="mt-3 text-center text-sm text-gray-600">
+              <p><strong>Press Enter to continue</strong></p>
             </div>
           </div>
         )}

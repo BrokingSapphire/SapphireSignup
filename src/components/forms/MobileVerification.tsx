@@ -33,6 +33,8 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
   const [otpTimer, setOtpTimer] = useState(600); //  10 minutes in seconds
   const [resendTimer, setResendTimer] = useState(0);
   const [hasManuallyVerified, setHasManuallyVerified] = useState(false); // Track manual verification
+  const [showChangeMobile, setShowChangeMobile] = useState(false); // New state for change mobile
+  const [isResendingOTP, setIsResendingOTP] = useState(false); // New state for resend loading
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [, setEmail] = useState("");
@@ -95,6 +97,14 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       console.error("Error retrieving phone from localStorage:", error);
       return "";
     }
+  };
+
+  const handleChangeMobile = () => {
+    setShowChangeMobile(true);
+    setShowOTP(false);
+    setOtp(["", "", "", "", "", ""]);
+    setOtpTimer(600);
+    setResendTimer(0);
   };
 
   // Prefill data from initialData or localStorage
@@ -186,7 +196,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       await handleVerifyOTP();
     }
     // If OTP is not shown yet, send OTP
-    else if (!showOTP) {
+    else if (!showOTP || showChangeMobile) {
       await handleSendOTP();
     }
   };
@@ -295,6 +305,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       );
 
       setShowOTP(true);
+      setShowChangeMobile(false);
       setOtpTimer(600); // Reset OTP timer to 10 minutes
       setResendTimer(30); // Set resend timer to 30 seconds
       toast.success("OTP sent successfully to your mobile number!");
@@ -312,6 +323,63 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       console.error("Send OTP error:", err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Separate function for resending OTP
+  const handleResendOTP = async () => {
+    if (!validateMobile(mobileNumber)) {
+      toast.error("Please enter a valid 10-digit mobile number");
+      return;
+    }
+
+    const currentEmail = getEmailFromStorage();
+    
+    if (!currentEmail) {
+      console.error("Verify your email first!");
+      toast.error("Please verify your email first!");
+      return;
+    }
+
+    setIsResendingOTP(true);
+
+    try {
+      const response = await axios.post<ApiResponse>(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`,
+        {
+          type: "phone",
+          email: currentEmail,
+          phone: mobileNumber,
+        }
+      );
+
+      if (!response) {
+        toast.error("Failed to send verification code. Please try again.");
+        return;
+      }
+
+      setOtpTimer(600); // Reset OTP timer to 10 minutes
+      setResendTimer(30); // Set resend timer to 30 seconds
+      
+      toast.success("New verification code sent to your mobile number!");
+      
+      // Clear existing OTP
+      setOtp(["", "", "", "", "", ""]);
+      
+      // Focus on the first OTP input
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
+    } catch (err: unknown) {
+      const axiosError = err as AxiosError<ApiErrorResponse>;
+      if (axiosError.response?.data?.message) {
+        toast.error(axiosError.response.data.message);
+      } else {
+        toast.error("Failed to send OTP. Please try again.");
+      }
+      console.error("Resend OTP error:", err);
+    } finally {
+      setIsResendingOTP(false);
     }
   };
 
@@ -378,8 +446,12 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
     const currentEmail = getEmailFromStorage();
     if (!currentEmail) return true;
     
-    if (!showOTP) return !validateMobile(mobileNumber);
+    if (!showOTP || showChangeMobile) return !validateMobile(mobileNumber);
     return !otp.every((digit) => digit !== "");
+  };
+
+  const shouldShowMobileInput = () => {
+    return !showOTP || showChangeMobile || isCompleted;
   };
 
   return (
@@ -402,34 +474,64 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       )}
 
       <div className="mb-8">
-        <label className="block text-gray-700 mb-2">Mobile Number</label>
-        <div className="flex gap-3">
-          <div className="bg-gray-50 px-3 py-2 rounded border border-gray-300 text-gray-500">
-            +91
+        <label className="block text-gray-700 mb-2">
+          Mobile Number
+          {showOTP && !showChangeMobile && !isCompleted && (
+            <span className="text-sm ml-2">
+              <button
+                onClick={handleChangeMobile}
+                className="text-blue-500 hover:text-blue-600 underline"
+                type="button"
+              >
+                Change Mobile
+              </button>
+            </span>
+          )}
+        </label>
+        {shouldShowMobileInput() && (
+          <div className="flex gap-3">
+            <div className="bg-gray-50 px-3 py-2 rounded border border-gray-300 text-gray-500">
+              +91
+            </div>
+            <input
+              type="tel"
+              placeholder="Your 10 digit mobile number"
+              className={`flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none ${
+                isCompleted ? "bg-gray-50" : ""
+              }`}
+              value={mobileNumber}
+              onChange={(e) => {
+                const value = e.target.value.replace(/\D/g, "");
+                if (value.length > 10) return;
+                setMobileNumber(value);
+                setError(null);
+              }}
+              onKeyDown={handleMobileKeyDown}
+              maxLength={10}
+              pattern="[6-9][0-9]{9}"
+              disabled={isLoading || (showOTP && !showChangeMobile) || isCompleted}
+            />
           </div>
-          <input
-            type="tel"
-            placeholder="Your 10 digit mobile number"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-teal-500 appearance-none"
-            value={mobileNumber}
-            onChange={(e) => {
-              const value = e.target.value.replace(/\D/g, "");
-              if (value.length > 10) return;
-              setMobileNumber(value);
-              setError(null);
-            }}
-            onKeyDown={handleMobileKeyDown}
-            maxLength={10}
-            pattern="[6-9][0-9]{9}"
-            disabled={isLoading || showOTP || isCompleted}
-          />
-        </div>
+        )}
+        {!shouldShowMobileInput() && (
+          <div className="flex gap-3">
+            <div className="bg-gray-50 px-3 py-2 rounded border border-gray-300 text-gray-500">
+              +91
+            </div>
+            <div className="flex-1 text-gray-700 bg-gray-50 px-3 py-2 rounded border">
+              {mobileNumber}
+            </div>
+          </div>
+        )}
       </div>
 
       {showOTP && (
         <div className="mb-6">
           <label className="block text-left text-gray-heading mb-3">
             Enter OTP
+            {isCompleted && (
+              <span className="text-sm ml-2">✓ Verified</span>
+            )}
           </label>
           <div className="flex flex-wrap justify-center gap-2 mb-4">
             {otp.map((digit, index) => (
@@ -444,7 +546,11 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
                 value={digit}
                 onChange={(e) => handleOTPChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className={`w-10 sm:w-12 h-10 sm:h-12 text-center border-2 border-gray-300 focus:outline-none focus:border-teal-500 text-xl appearance-none
+                className={`w-10 sm:w-12 h-10 sm:h-12 text-center border-2 text-xl appearance-none
+                  ${isCompleted 
+                    ? "border-gray-300 focus:outline-none focus:border-teal-500" 
+                    : "border-gray-300 focus:outline-none focus:border-teal-500"
+                  }
                   ${
                     index === 0
                       ? "rounded-md rounded-r-none"
@@ -460,10 +566,30 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
             <div className="flex flex-col sm:flex-row justify-end text-sm mb-2 gap-2">
               <button
                 className="text-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleSendOTP}
-                disabled={isLoading || resendTimer > 0}
+                onClick={handleResendOTP}
+                disabled={isResendingOTP || resendTimer > 0}
               >
-                {resendTimer > 0 ? `Resend OTP (${resendTimer}s)` : "Resend OTP"}
+                {isResendingOTP
+                  ? "Sending..."
+                  : resendTimer > 0
+                  ? `Resend OTP (${resendTimer}s)`
+                  : "Resend OTP"}
+              </button>
+            </div>
+          )}
+          {showChangeMobile && (
+            <div className="flex justify-center mt-4">
+              <button
+                onClick={() => {
+                  setOtp(["", "", "", "", "", ""]);
+                  setError(null);
+                  // Auto-restart OTP sending
+                  setTimeout(() => handleSendOTP(), 100);
+                }}
+                className="text-gray-600 hover:text-gray-700 underline text-sm"
+                type="button"
+              >
+                Re-send to new number
               </button>
             </div>
           )}

@@ -9,12 +9,38 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 
-/* eslint-disable */
+// MediaPipe Types
+interface MediaPipeResults {
+  detections: Array<{
+    boundingBox: {
+      xCenter: number;
+      yCenter: number;
+      width: number;
+      height: number;
+    };
+    score: number;
+  }>;
+}
+
+interface MediaPipeFaceDetection {
+  setOptions: (options: {
+    model: string;
+    minDetectionConfidence: number;
+  }) => void;
+  onResults: (callback: (results: MediaPipeResults) => void) => void;
+  send: (input: { image: HTMLVideoElement }) => void;
+  close: () => void;
+}
+
+interface MediaPipeWindow extends Window {
+  FaceDetection?: new (config: { model: string }) => MediaPipeFaceDetection;
+}
+
+declare const window: MediaPipeWindow;
+
 interface IPVInitialData {
-  // Define the expected properties for initialData here
-  // Example:
-  // uid?: string;
-  // status?: string;
+  uid?: string;
+  status?: string;
 }
 
 interface IPVVerificationProps {
@@ -42,12 +68,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   // Face detection states
   const [isFaceDetected, setIsFaceDetected] = useState(false);
   const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
-  const [faceDetector, setFaceDetector] = useState<any>(null);
+  const [faceDetector, setFaceDetector] = useState<MediaPipeFaceDetection | null>(null);
+  const [hasShownNoFaceToast, setHasShownNoFaceToast] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const noFaceToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Use the checkpoint hook to check for existing IPV data
   const { 
@@ -66,82 +93,48 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [imageFile, isLoading, ipvUid, wantsToReverify]);
+  }, [imageFile, isLoading, ipvUid, wantsToReverify, isFaceDetected]);
 
   // Load MediaPipe Face Detection
   useEffect(() => {
     const loadMediaPipe = async () => {
       try {
+        // Check if already loaded
+        if (window.FaceDetection) {
+          initializeFaceDetector();
+          return;
+        }
+
+        console.log('Loading MediaPipe Face Detection...');
+        
         // Load MediaPipe from CDN
         const script = document.createElement('script');
         script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/face_detection.js';
-        script.onload = async () => {
-          const { FaceDetection } = (window as any);
-          
-          if (FaceDetection) {
-            const detector = new FaceDetection({
-              model: 'short_range'
-            });
-            
-            detector.setOptions({
-              model: 'short_range',
-              minDetectionConfidence: 0.5,
-            });
-            
-            detector.onResults((results: any) => {
-              const faceDetected = results.detections && results.detections.length > 0;
-              setIsFaceDetected(faceDetected);
-              
-              // Draw face detection overlay
-              if (overlayCanvasRef.current && videoRef.current) {
-                const canvas = overlayCanvasRef.current;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                  // Clear previous drawings
-                  ctx.clearRect(0, 0, canvas.width, canvas.height);
-                  
-                  if (results.detections && results.detections.length > 0) {
-                    results.detections.forEach((detection: any) => {
-                      const bbox = detection.boundingBox;
-                      const x = bbox.xCenter * canvas.width - (bbox.width * canvas.width) / 2;
-                      const y = bbox.yCenter * canvas.height - (bbox.height * canvas.height) / 2;
-                      const width = bbox.width * canvas.width;
-                      const height = bbox.height * canvas.height;
-                      
-                      // Draw green rectangle around detected face
-                      ctx.strokeStyle = '#10B981';
-                      ctx.lineWidth = 3;
-                      ctx.strokeRect(x, y, width, height);
-                      
-                      // Draw confidence score
-                      ctx.fillStyle = '#10B981';
-                      ctx.font = '16px Arial';
-                      ctx.fillText(
-                        `Face: ${(detection.score * 100).toFixed(0)}%`,
-                        x,
-                        y - 10
-                      );
-                    });
-                  }
-                }
-              }
-            });
-            
-            setFaceDetector(detector);
-            setIsMediaPipeLoaded(true);
-            console.log('MediaPipe Face Detection loaded successfully');
+        script.crossOrigin = 'anonymous';
+        
+        script.onload = () => {
+          console.log('MediaPipe script loaded');
+          if (window.FaceDetection) {
+            initializeFaceDetector();
+          } else {
+            console.error('FaceDetection not available after script load');
+            setIsMediaPipeLoaded(false);
           }
         };
         
-        script.onerror = () => {
-          console.error('Failed to load MediaPipe Face Detection');
+        script.onerror = (error) => {
+          console.error('Failed to load MediaPipe Face Detection script:', error);
           setIsMediaPipeLoaded(false);
         };
         
         document.head.appendChild(script);
         
         return () => {
-          document.head.removeChild(script);
+          // Cleanup script when component unmounts
+          const existingScript = document.querySelector('script[src*="face_detection"]');
+          if (existingScript && document.head.contains(existingScript)) {
+            document.head.removeChild(existingScript);
+          }
         };
       } catch (error) {
         console.error('Error loading MediaPipe:', error);
@@ -149,22 +142,87 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       }
     };
 
+    const initializeFaceDetector = () => {
+      try {
+        if (!window.FaceDetection) {
+          console.error('FaceDetection constructor not available');
+          return;
+        }
+
+        console.log('Initializing face detector...');
+        const detector = new window.FaceDetection({
+          model: 'short_range'
+        });
+        
+        detector.setOptions({
+          model: 'short_range',
+          minDetectionConfidence: 0.6, // Slightly higher confidence for better accuracy
+        });
+        
+        detector.onResults((results: MediaPipeResults) => {
+          const faceDetected = results.detections && results.detections.length > 0;
+          setIsFaceDetected(faceDetected);
+          
+          // Show toast if no face detected after camera starts (only once)
+          if (showCamera && !faceDetected && !hasShownNoFaceToast) {
+            // Clear any existing timeout
+            if (noFaceToastTimeoutRef.current) {
+              clearTimeout(noFaceToastTimeoutRef.current);
+            }
+            
+            // Set timeout to show toast after 2 seconds of no face detection
+            noFaceToastTimeoutRef.current = setTimeout(() => {
+              if (!isFaceDetected && showCamera) {
+                toast.error("Face not recognized! Please position your face clearly in front of the camera.");
+                setHasShownNoFaceToast(true);
+              }
+            }, 2000);
+          }
+          
+          // Clear timeout if face is detected
+          if (faceDetected && noFaceToastTimeoutRef.current) {
+            clearTimeout(noFaceToastTimeoutRef.current);
+            noFaceToastTimeoutRef.current = null;
+          }
+        });
+        
+        setFaceDetector(detector);
+        setIsMediaPipeLoaded(true);
+        console.log('MediaPipe Face Detection initialized successfully');
+      } catch (error) {
+        console.error('Error initializing face detector:', error);
+        setIsMediaPipeLoaded(false);
+      }
+    };
+
     loadMediaPipe();
+
+    // Cleanup function
+    return () => {
+      if (noFaceToastTimeoutRef.current) {
+        clearTimeout(noFaceToastTimeoutRef.current);
+      }
+    };
   }, []);
 
   // Start face detection when camera is active
   useEffect(() => {
-    if (showCamera && faceDetector && videoRef.current) {
+    if (showCamera && faceDetector && videoRef.current && isMediaPipeLoaded) {
       const startDetection = () => {
         if (detectionIntervalRef.current) {
           clearInterval(detectionIntervalRef.current);
         }
         
+        console.log('Starting face detection...');
         detectionIntervalRef.current = setInterval(() => {
-          if (videoRef.current && videoRef.current.readyState >= 2) {
-            faceDetector.send({ image: videoRef.current });
+          if (videoRef.current && videoRef.current.readyState >= 2 && faceDetector) {
+            try {
+              faceDetector.send({ image: videoRef.current });
+            } catch (error) {
+              console.error('Error sending frame to face detector:', error);
+            }
           }
-        }, 100); // Check every 100ms
+        }, 150); // Check every 150ms for better performance
       };
 
       // Wait for video to be ready
@@ -172,16 +230,21 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       if (video.readyState >= 2) {
         startDetection();
       } else {
-        video.addEventListener('loadeddata', startDetection);
+        const handleLoadedData = () => {
+          startDetection();
+          video.removeEventListener('loadeddata', handleLoadedData);
+        };
+        video.addEventListener('loadeddata', handleLoadedData);
       }
 
       return () => {
         if (detectionIntervalRef.current) {
           clearInterval(detectionIntervalRef.current);
+          detectionIntervalRef.current = null;
         }
       };
     }
-  }, [showCamera, faceDetector]);
+  }, [showCamera, faceDetector, isMediaPipeLoaded]);
 
   // Check if IPV is already completed and show toast
   useEffect(() => {
@@ -261,22 +324,26 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       } else {
         setError("Failed to initialize IPV. Please try again.");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("IPV initialization error:", err);
-      if (err.response) {
-        if (err.response.data?.message) {
-          setError(`Error: ${err.response.data.message}`);
-        } else if (err.response.status === 400) {
-          setError("Invalid request. Please try again.");
-        } else if (err.response.status === 401) {
-          setError("Authentication failed. Please restart the process.");
-        } else if (err.response.status === 403) {
-          setError("Access denied. Please check your authentication and try again.");
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          if (err.response.data?.message) {
+            setError(`Error: ${err.response.data.message}`);
+          } else if (err.response.status === 400) {
+            setError("Invalid request. Please try again.");
+          } else if (err.response.status === 401) {
+            setError("Authentication failed. Please restart the process.");
+          } else if (err.response.status === 403) {
+            setError("Access denied. Please check your authentication and try again.");
+          } else {
+            setError(`Server error (${err.response.status}). Please try again.`);
+          }
+        } else if (err.request) {
+          setError("Network error. Please check your connection and try again.");
         } else {
-          setError(`Server error (${err.response.status}). Please try again.`);
+          setError("An unexpected error occurred. Please try again.");
         }
-      } else if (err.request) {
-        setError("Network error. Please check your connection and try again.");
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -290,6 +357,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       setShowCamera(true);
       setError(null);
       setIsFaceDetected(false);
+      setHasShownNoFaceToast(false); // Reset toast flag when starting camera
+      
+      // Clear any existing no-face toast timeout
+      if (noFaceToastTimeoutRef.current) {
+        clearTimeout(noFaceToastTimeoutRef.current);
+        noFaceToastTimeoutRef.current = null;
+      }
     } catch (err) {
       console.error("Camera access error:", err);
       setError("Camera access failed. Please enable permissions.");
@@ -337,9 +411,18 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   };
 
   const isButtonDisabled = () => {
-    return Boolean((!imageFile && !shouldShowCompletedState) || 
-      isLoading || 
-      (shouldShowCamera && !ipvUid));
+    // If showing completed state, always allow continue
+    if (shouldShowCompletedState) {
+      return false;
+    }
+    
+    // If showing camera, require face detection
+    if (showCamera) {
+      return !isFaceDetected || isLoading;
+    }
+    
+    // If not showing camera, require image file
+    return !imageFile || isLoading || !ipvUid;
   };
 
   const handleSubmit = async () => {
@@ -355,6 +438,12 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     if (isStepCompleted(CheckpointStep.IPV) && !imageFile && !wantsToReverify) {
       console.log("Step completed, no new image, proceeding to next step");
       onNext();
+      return;
+    }
+
+    // If showing camera and face detected, capture photo first
+    if (showCamera && isFaceDetected) {
+      capturePhoto();
       return;
     }
 
@@ -405,28 +494,32 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         onNext();
       }, 100);
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("IPV upload error:", err);
       setIsLoading(false); // Make sure to reset loading state on error
       
-      if (err.response) {
-        if (err.response.data?.message) {
-          setError(`Upload failed: ${err.response.data.message}`);
-        } else if (err.response.status === 401) {
-          setError("Upload session expired. Please try again.");
-          // Re-initialize IPV
-          setIsInitialized(false);
-          setIpvUid(null);
-          setCameraAutoStarted(false);
-        } else if (err.response.status === 422) {
-          setError("Invalid image format. Please try again.");
-        } else if (err.response.status === 403) {
-          setError("Access denied. Please check your authentication and try again.");
+      if (axios.isAxiosError(err)) {
+        if (err.response) {
+          if (err.response.data?.message) {
+            setError(`Upload failed: ${err.response.data.message}`);
+          } else if (err.response.status === 401) {
+            setError("Upload session expired. Please try again.");
+            // Re-initialize IPV
+            setIsInitialized(false);
+            setIpvUid(null);
+            setCameraAutoStarted(false);
+          } else if (err.response.status === 422) {
+            setError("Invalid image format. Please try again.");
+          } else if (err.response.status === 403) {
+            setError("Access denied. Please check your authentication and try again.");
+          } else {
+            setError(`Server error (${err.response.status}). Please try again.`);
+          }
+        } else if (err.request) {
+          setError("Network error. Please check your connection and try again.");
         } else {
-          setError(`Server error (${err.response.status}). Please try again.`);
+          setError("An unexpected error occurred. Please try again.");
         }
-      } else if (err.request) {
-        setError("Network error. Please check your connection and try again.");
       } else {
         setError("An unexpected error occurred. Please try again.");
       }
@@ -440,6 +533,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setIpvUid(null);
     setCameraAutoStarted(false);
     setWantsToReverify(true); // Set intent to re-verify
+    setHasShownNoFaceToast(false);
+    
+    // Clear any existing timeouts
+    if (noFaceToastTimeoutRef.current) {
+      clearTimeout(noFaceToastTimeoutRef.current);
+      noFaceToastTimeoutRef.current = null;
+    }
   };
 
   const handleVerifyAgain = () => {
@@ -451,6 +551,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setShowCamera(false);
     setCameraAutoStarted(false);
     setIsFaceDetected(false);
+    setHasShownNoFaceToast(false);
+    
+    // Clear any existing timeouts
+    if (noFaceToastTimeoutRef.current) {
+      clearTimeout(noFaceToastTimeoutRef.current);
+      noFaceToastTimeoutRef.current = null;
+    }
     
     // Stop camera if running
     stopCamera();
@@ -468,7 +575,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     let stream: MediaStream | null = null;
 
     const setupCamera = async () => {
-      if (showCamera && videoRef.current && overlayCanvasRef.current) {
+      if (showCamera && videoRef.current) {
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: { 
@@ -480,14 +587,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            
-            // Setup overlay canvas to match video dimensions
-            videoRef.current.addEventListener('loadedmetadata', () => {
-              if (overlayCanvasRef.current && videoRef.current) {
-                overlayCanvasRef.current.width = videoRef.current.videoWidth;
-                overlayCanvasRef.current.height = videoRef.current.videoHeight;
-              }
-            });
           }
         } catch (err) {
           console.error("Camera access error:", err);
@@ -512,6 +611,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   const stopCamera = () => {
     setShowCamera(false);
     setIsFaceDetected(false);
+    setHasShownNoFaceToast(false);
+    
+    // Clear any existing timeouts
+    if (noFaceToastTimeoutRef.current) {
+      clearTimeout(noFaceToastTimeoutRef.current);
+      noFaceToastTimeoutRef.current = null;
+    }
     
     // Stop face detection
     if (detectionIntervalRef.current) {
@@ -526,6 +632,32 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       stream.getTracks().forEach((track) => track.stop());
     }
   };
+
+  // Cleanup on component unmount
+  useEffect(() => {
+    return () => {
+      // Cleanup face detector
+      if (faceDetector) {
+        try {
+          faceDetector.close();
+        } catch (error) {
+          console.error('Error closing face detector:', error);
+        }
+      }
+      
+      // Clear timeouts
+      if (noFaceToastTimeoutRef.current) {
+        clearTimeout(noFaceToastTimeoutRef.current);
+      }
+      
+      if (detectionIntervalRef.current) {
+        clearInterval(detectionIntervalRef.current);
+      }
+      
+      // Stop camera
+      stopCamera();
+    };
+  }, []);
 
   const shouldShowCamera = ipvUid && (wantsToReverify || !isStepCompleted(CheckpointStep.IPV));
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.IPV) && !wantsToReverify;
@@ -581,7 +713,10 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
   const getButtonText = () => {
     if (isLoading) return "Uploading...";
-    if (isStepCompleted(CheckpointStep.IPV) && !imageFile && !wantsToReverify) return "Continue";
+    if (shouldShowCompletedState) return "Continue";
+    if (showCamera) {
+      return isFaceDetected ? "Capture Photo" : "Detecting Face...";
+    }
     return "Continue";
   };
 
@@ -593,31 +728,11 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       />
 
       {/* MediaPipe Loading Status */}
-      {!isMediaPipeLoaded && (
+      {!isMediaPipeLoaded && showCamera && (
         <div className="mb-4 p-3 bg-blue-50 rounded border border-blue-200">
           <div className="flex items-center">
             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
             <p className="text-blue-700 text-sm">Loading face detection...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Face Detection Status */}
-      {showCamera && isMediaPipeLoaded && (
-        <div className={`mb-4 p-3 rounded border ${
-          isFaceDetected 
-            ? 'bg-green-50 border-green-200' 
-            : 'bg-yellow-50 border-yellow-200'
-        }`}>
-          <div className="flex items-center">
-            <div className={`w-3 h-3 rounded-full mr-2 ${
-              isFaceDetected ? 'bg-green-500' : 'bg-yellow-500'
-            }`}></div>
-            <p className={`text-sm ${
-              isFaceDetected ? 'text-green-700' : 'text-yellow-700'
-            }`}>
-              {isFaceDetected ? '✓ Face detected - Ready to capture!' : 'Position your face clearly in the camera'}
-            </p>
           </div>
         </div>
       )}
@@ -653,20 +768,12 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
               </Button>
             </div>
           ) : showCamera ? (
-            <>
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                className="w-full h-full object-cover rounded transform scale-x-[-1]"
-              />
-              {/* Face detection overlay */}
-              <canvas
-                ref={overlayCanvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none transform scale-x-[-1]"
-                style={{ mixBlendMode: 'normal' }}
-              />
-            </>
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full h-full object-cover rounded transform scale-x-[-1]"
+            />
           ) : imageFile ? (
             <div className="space-y-4 w-full flex flex-col items-center">
               <div className="relative w-full h-[250px]">
@@ -695,16 +802,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
         {showCamera && (
           <div className="flex justify-center mt-4 gap-4">
-            <Button 
-              onClick={capturePhoto} 
-              variant="ghost" 
-              className={`py-2 ${
-                !isFaceDetected ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-              disabled={!isFaceDetected}
-            >
-              {isFaceDetected ? 'Capture Photo' : 'Face Not Detected'}
-            </Button>
             <Button onClick={stopCamera} variant="outline" className="py-2">
               Cancel
             </Button>
@@ -718,6 +815,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
                 setImageFile(null);
                 setError(null);
                 setIsFaceDetected(false);
+                setHasShownNoFaceToast(false);
                 // Auto-restart camera
                 setTimeout(() => startCamera(), 100);
               }}
@@ -740,8 +838,8 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         onClick={handleSubmit}
         disabled={isButtonDisabled()}
         variant="ghost"
-        className={`w-full py-6 ${
-          isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
+        className={`w-full py-6 transition-opacity duration-300 ${
+          isButtonDisabled() ? "opacity-30 cursor-not-allowed" : "opacity-100"
         }`}
       >
         {getButtonText()}
