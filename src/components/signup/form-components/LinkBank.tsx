@@ -3,9 +3,9 @@ import React, { useState } from "react";
 
 // Define image paths
 const IMAGES = {
-  UPIBlack: "/signup/UPIBlack.png",
-  blackbank: "/signup/blackbank.png",
-  QRCode: "/signup/QRCode.png" // Add QR code image path
+  UPIBlack: "https://signup.sapphirebroking.com/UPIBlack.png",
+  blackbank: "https://signup.sapphirebroking.com/blackbank.png",
+  QRCode: "https://signup.sapphirebroking.com/QRCode.png" // Add QR code image path
 } as const;
 
 // Define types for the form data

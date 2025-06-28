@@ -484,7 +484,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
             <Image 
               width={100} 
               height={80} 
-              src='/signup/e-sign.png' 
+              src='https://signup.sapphirebroking.com/e-sign.png' 
               alt="Aadhar E-sign Completed" 
               className="max-w-full h-auto rotate-90" 
             />
@@ -526,7 +526,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
           <Image 
             width={100} 
             height={80} 
-            src='/signup/e-sign.png' 
+            src='https://signup.sapphirebroking.com/e-sign.png' 
             alt="Aadhar E-sign" 
             className="max-w-full h-auto rotate-90" 
           />
