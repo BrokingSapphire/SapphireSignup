@@ -385,6 +385,13 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
   const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo;
 
+  function toTitleCase(text: string): string {
+    return text
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
   return (
     <div className="w-full -mt-28 sm:mt-4 max-w-2xl mx-auto p-4">
       <FormHeading
@@ -436,10 +443,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           {bankInfo.bankName && !isLoadingBankInfo && (
             <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
               <div className="text-sm text-green-800">
-                <span className="font-medium">{bankInfo.bankName}</span>
-                {bankInfo.branch && <span> • {bankInfo.branch}</span>}
-                {bankInfo.city && <span> • {bankInfo.city}</span>}
-                {bankInfo.state && <span> • {bankInfo.state}</span>}
+                <span className="font-medium">{bankInfo.bankName}{','}</span>
+                {bankInfo.branch && <span> {toTitleCase(bankInfo.branch)},{' '}</span>}
+                {bankInfo.city && <span>{toTitleCase(bankInfo.city)},{' '}</span>}
+                {bankInfo.state && <span>{toTitleCase(bankInfo.state)}</span>}
               </div>
             </div>
           )}
