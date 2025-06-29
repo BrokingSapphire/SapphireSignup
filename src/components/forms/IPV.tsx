@@ -33,7 +33,10 @@ interface MediaPipeFaceDetection {
 }
 
 interface MediaPipeWindow extends Window {
-  FaceDetection?: new (config: { model: string }) => MediaPipeFaceDetection;
+  FaceDetection?: new (config: { 
+    locateFile?: (file: string) => string;
+    model?: string;
+  }) => MediaPipeFaceDetection;
 }
 
 declare const window: MediaPipeWindow;
@@ -107,35 +110,40 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
         console.log('Loading MediaPipe Face Detection...');
         
-        // Load MediaPipe from CDN
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/face_detection.js';
-        script.crossOrigin = 'anonymous';
+        const loadScript = (src: string): Promise<void> => {
+          return new Promise((resolve, reject) => {
+            // Check if script already exists
+            const existingScript = document.querySelector(`script[src="${src}"]`);
+            if (existingScript) {
+              resolve();
+              return;
+            }
+
+            const script = document.createElement('script');
+            script.src = src;
+            script.crossOrigin = 'anonymous';
+            script.onload = () => resolve();
+            script.onerror = () => reject(new Error(`Failed to load ${src}`));
+            document.head.appendChild(script);
+          });
+        };
+
+        // Load MediaPipe scripts in correct order
+        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js');
+        await loadScript('https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/face_detection.js');
         
-        script.onload = () => {
-          console.log('MediaPipe script loaded');
+        // Small delay to ensure everything is loaded
+        setTimeout(() => {
           if (window.FaceDetection) {
             initializeFaceDetector();
           } else {
             console.error('FaceDetection not available after script load');
             setIsMediaPipeLoaded(false);
           }
-        };
+        }, 1000);
         
-        script.onerror = (error) => {
-          console.error('Failed to load MediaPipe Face Detection script:', error);
-          setIsMediaPipeLoaded(false);
-        };
-        
-        document.head.appendChild(script);
-        
-        return () => {
-          // Cleanup script when component unmounts
-          const existingScript = document.querySelector('script[src*="face_detection"]');
-          if (existingScript && document.head.contains(existingScript)) {
-            document.head.removeChild(existingScript);
-          }
-        };
       } catch (error) {
         console.error('Error loading MediaPipe:', error);
         setIsMediaPipeLoaded(false);
@@ -151,17 +159,25 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
         console.log('Initializing face detector...');
         const detector = new window.FaceDetection({
-          model: 'short_range'
+          locateFile: (file: string) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+          }
         });
         
+        // Set options with decreased accuracy (0.3) as requested
         detector.setOptions({
           model: 'short_range',
-          minDetectionConfidence: 0.6, // Slightly higher confidence for better accuracy
+          minDetectionConfidence: 0.3, // Decreased from 0.6 to 0.3
         });
         
         detector.onResults((results: MediaPipeResults) => {
           const faceDetected = results.detections && results.detections.length > 0;
           setIsFaceDetected(faceDetected);
+          
+          // Debug logging
+          if (results.detections && results.detections.length > 0) {
+            console.log(`Face detected! Confidence: ${results.detections[0].score.toFixed(3)}`);
+          }
           
           // Show toast if no face detected after camera starts (only once)
           if (showCamera && !faceDetected && !hasShownNoFaceToast) {
@@ -170,13 +186,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
               clearTimeout(noFaceToastTimeoutRef.current);
             }
             
-            // Set timeout to show toast after 2 seconds of no face detection
+            // Set timeout to show toast after 3 seconds of no face detection
             noFaceToastTimeoutRef.current = setTimeout(() => {
               if (!isFaceDetected && showCamera) {
                 toast.error("Face not recognized! Please position your face clearly in front of the camera.");
                 setHasShownNoFaceToast(true);
               }
-            }, 2000);
+            }, 3000);
           }
           
           // Clear timeout if face is detected
@@ -222,7 +238,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
               console.error('Error sending frame to face detector:', error);
             }
           }
-        }, 150); // Check every 150ms for better performance
+        }, 500); // Changed to 500ms as requested
       };
 
       // Wait for video to be ready
@@ -577,16 +593,23 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     const setupCamera = async () => {
       if (showCamera && videoRef.current) {
         try {
+          console.log('Setting up camera...');
           stream = await navigator.mediaDevices.getUserMedia({
             video: { 
               facingMode: "user",
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
+              width: { ideal: 640, max: 1280 },
+              height: { ideal: 480, max: 720 }
             },
           });
 
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
+            console.log('Camera stream set successfully');
+            
+            // Add event listener for when video is ready
+            videoRef.current.onloadedmetadata = () => {
+              console.log('Video metadata loaded, ready for detection');
+            };
           }
         } catch (err) {
           console.error("Camera access error:", err);
@@ -603,6 +626,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     // Cleanup function
     return () => {
       if (stream) {
+        console.log('Cleaning up camera stream');
         stream.getTracks().forEach((track) => track.stop());
       }
     };
@@ -808,7 +832,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           </div>
         )}
 
-        {imageFile && shouldShowCamera && (
+        {imageFile && !shouldShowCamera && (
           <div className="flex justify-center mt-4">
             <Button
               onClick={() => {
