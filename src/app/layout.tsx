@@ -1,10 +1,17 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Lexend, Poppins, Lobster_Two } from "next/font/google";
+import {
+  Geist,
+  Geist_Mono,
+  Lexend,
+  Poppins,
+  Lobster_Two,
+} from "next/font/google";
 import "./globals.css";
-import { QueryProvider } from '@/providers/QueryProvider';
+import { QueryProvider } from "@/providers/QueryProvider";
 import Navbar from "../components/Navbar";
 import { Toaster } from "sonner";
-// Import Google Fonts with Next.js font optimization.
+
+// Load Google Fonts with Next.js optimization
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -48,6 +55,9 @@ export const metadata: Metadata = {
     images: [{ url: "https://www.sapphirebroking.com/logo-white.svg" }],
     type: "website",
   },
+  icons: {
+    icon: "/logo.svg",
+  },
 };
 
 export default function RootLayout({
@@ -56,8 +66,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="scroll-smooth">
       <head>
+        <link rel="icon" href="/logo.svg" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${poppins.variable} ${lobsterTwo.variable} ${lexend.variable} font-poppins bg-white text-black antialiased`}
@@ -65,7 +76,7 @@ export default function RootLayout({
         <QueryProvider>
           <Navbar />
           {children}
-            <Toaster position="top-right" style={{ right: '10px' }}  offset={77} />
+          <Toaster position="top-right" style={{ right: "10px" }} offset={77} />
         </QueryProvider>
       </body>
     </html>

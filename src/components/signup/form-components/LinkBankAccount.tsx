@@ -3,8 +3,8 @@ import React, { useState } from "react";
 
 // Define image paths
 const IMAGES = {
-  UPIBlack: "/signup/UPIBlack.png",
-  blackbank: "/signup/blackbank.png"
+  UPIBlack: "https://signup.sapphirebroking.com/UPIBlack.png",
+  blackbank: "https://signup.sapphirebroking.com/blackbank.png"
 } as const;
 
 // Define types for the form data

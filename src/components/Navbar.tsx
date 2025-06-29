@@ -41,10 +41,10 @@ const Navbar = () => {
   }, [isSidebarOpen]);
 
   const navLinks = [
-    { href: "/about", label: "About" },
-    { href: "/product", label: "Product" },
-    { href: "/pricing", label: "Pricing" },
-    { href: "/contact", label: "Contact" },
+    { href: "https://www.sapphirebroking.com/about", label: "About" },
+    { href: "https://www.sapphirebroking.com/product", label: "Product" },
+    { href: "https://www.sapphirebroking.com/pricing", label: "Pricing" },
+    { href: "https://www.sapphirebroking.com/contact", label: "Contact" },
   ];
 
   const toggleSidebar = () => {
@@ -96,7 +96,7 @@ const Navbar = () => {
             <Link href="https://terminal.sapphirebroking.com" target="_blank" rel="noopener noreferrer">
               <Button variant="outline">Login</Button>
             </Link>
-            <Link href="/signup">
+            <Link href="https://signup.sapphirebroking.com">
               <Button variant="ghost">Signup</Button>
             </Link>
           </div>
@@ -201,7 +201,7 @@ const Navbar = () => {
                 Login
               </Button>
             </Link>
-            <Link href="/signup" className="block">
+            <Link href="https://signup.sapphirebroking.com" className="block">
               <Button className="w-full bg-[#064D51] hover:bg-[#043638] text-white">
                 Signup
               </Button>
