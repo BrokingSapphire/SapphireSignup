@@ -108,8 +108,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           initializeFaceDetector();
           return;
         }
-
-        console.log('Loading MediaPipe Face Detection...');
         
         const loadScript = (src: string): Promise<void> => {
           return new Promise((resolve, reject) => {
@@ -157,8 +155,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           console.error('FaceDetection constructor not available');
           return;
         }
-
-        console.log('Initializing face detector...');
+        
         const detector = new window.FaceDetection({
           locateFile: (file: string) => {
             return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
@@ -174,11 +171,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         detector.onResults((results: MediaPipeResults) => {
           const faceDetected = results.detections && results.detections.length > 0;
           setIsFaceDetected(faceDetected);
-          
-          // Debug logging
-          if (results.detections && results.detections.length > 0) {
-            console.log(`Face detected! Confidence: ${results.detections[0].score.toFixed(3)}`);
-          }
           
           // Show toast if no face detected after camera starts (only once per session)
           if (isMonitoringFace && !faceDetected && !hasShownNoFaceToast) {
@@ -205,7 +197,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         
         setFaceDetector(detector);
         setIsMediaPipeLoaded(true);
-        console.log('MediaPipe Face Detection initialized successfully');
       } catch (error) {
         console.error('Error initializing face detector:', error);
         setIsMediaPipeLoaded(false);
@@ -229,8 +220,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         if (detectionIntervalRef.current) {
           clearInterval(detectionIntervalRef.current);
         }
-        
-        console.log('Starting face detection...');
+
         setIsMonitoringFace(true);
         detectionIntervalRef.current = setInterval(() => {
           if (videoRef.current && videoRef.current.readyState >= 2 && faceDetector && isMonitoringFace) {
@@ -267,8 +257,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
   // Check if IPV is already completed and show toast
   useEffect(() => {
-    console.log("useEffect triggered - isStepCompleted:", isStepCompleted(CheckpointStep.IPV), "wantsToReverify:", wantsToReverify, "isInitialized:", isInitialized, "isLoading:", isLoading);
-    
     if (isStepCompleted(CheckpointStep.IPV) && !wantsToReverify) {
       // IPV is already completed and user doesn't want to re-verify
       if (!isInitialized) {
@@ -285,7 +273,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     // If not completed OR user wants to re-verify, initialize IPV
     // But only if we haven't already initialized and we're not already loading
     if (((!isStepCompleted(CheckpointStep.IPV) && !isInitialized) || wantsToReverify) && !isLoading && !ipvUid) {
-      console.log("Calling initializeIPV from useEffect");
       initializeIPV();
     }
   }, [isStepCompleted(CheckpointStep.IPV), wantsToReverify]);
@@ -302,11 +289,8 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   }, [isInitialized, ipvUid, cameraAutoStarted, wantsToReverify, isStepCompleted]);
 
   const initializeIPV = async () => {
-    console.log("initializeIPV called - isLoading:", isLoading, "ipvUid:", ipvUid);
-    
     // Prevent multiple simultaneous calls
     if (isLoading || ipvUid) {
-      console.log("Already initializing or UID exists, skipping...");
       return;
     }
 
@@ -319,8 +303,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         setError("Authentication token not found. Please restart the process.");
         return;
       }
-
-      console.log("Making API call to initialize IPV session...");
 
       // Use the correct endpoint for IPV initialization
       const response = await axios.post(
@@ -337,7 +319,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       );
 
       if (response.data?.data?.uid) {
-        console.log("IPV session initialized with UID:", response.data.data.uid);
         setIpvUid(response.data.data.uid);
         setIsInitialized(true);
       } else {
@@ -447,17 +428,13 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   };
 
   const handleSubmit = async () => {
-    console.log("handleSubmit called - isLoading:", isLoading, "imageFile:", !!imageFile, "ipvUid:", !!ipvUid);
-    
     // Prevent multiple submissions
     if (isLoading) {
-      console.log("Already submitting, please wait...");
       return;
     }
 
     // If already completed and no new image and not wanting to re-verify, just go to next step
     if (isStepCompleted(CheckpointStep.IPV) && !imageFile && !wantsToReverify) {
-      console.log("Step completed, no new image, proceeding to next step");
       onNext();
       return;
     }
@@ -469,11 +446,9 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     }
 
     if (!imageFile || !ipvUid) {
-      console.log("Missing image or UID, cannot submit");
       return;
     }
 
-    console.log("Starting IPV submission...");
     setIsLoading(true);
     setError(null);
 
@@ -487,8 +462,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       const formData = new FormData();
       formData.append('image', imageFile);
 
-      console.log("Uploading IPV with UID:", ipvUid);
-
       // Use the correct PUT endpoint for IPV upload
       await axios.put(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv/${ipvUid}`,
@@ -500,8 +473,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           }
         }
       );
-
-      console.log("IPV uploaded successfully");
       
       // Reset re-verification state immediately to prevent further submissions
       setWantsToReverify(false);
@@ -565,8 +536,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   };
 
   const handleVerifyAgain = () => {
-    console.log("User wants to verify again");
-    
     // Clear all states first
     setImageFile(null);
     setError(null);
@@ -617,7 +586,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     const setupCamera = async () => {
       if (showCamera && videoRef.current) {
         try {
-          console.log('Setting up camera...');
           stream = await navigator.mediaDevices.getUserMedia({
             video: { 
               facingMode: "user",
@@ -628,11 +596,10 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
-            console.log('Camera stream set successfully');
             
             // Add event listener for when video is ready
             videoRef.current.onloadedmetadata = () => {
-              console.log('Video metadata loaded, ready for detection');
+              return "";
             };
           }
         } catch (err) {
@@ -651,7 +618,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     // Cleanup function
     return () => {
       if (stream) {
-        console.log('Cleaning up camera stream');
         stream.getTracks().forEach((track) => track.stop());
       }
     };

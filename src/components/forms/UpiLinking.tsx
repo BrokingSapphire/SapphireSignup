@@ -93,13 +93,11 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
   // Start polling when UPI data is available
   useEffect(() => {
     if (upiData && !isPollingRef.current && timeLeft > 0 && !isValidatingName && !error) {
-      console.log("Starting UPI polling...");
       startPolling();
     }
   }, [upiData, timeLeft, isValidatingName, error]);
 
   const stopPolling = useCallback(() => {
-    console.log("Stopping UPI polling");
     isPollingRef.current = false;
     setIsPolling(false);
     
@@ -116,18 +114,14 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
 
   const startPolling = useCallback(() => {
     if (isPollingRef.current) {
-      console.log("Polling already active, skipping...");
       return;
     }
-    
-    console.log("Initializing UPI polling with 20-second delay...");
+
     isPollingRef.current = true;
     setIsPolling(true);
     
     // Start polling after 20 seconds
     pollingTimeoutRef.current = setTimeout(() => {
-      console.log("Starting actual UPI polling...");
-      
       // Initial check
       checkUpiStatus();
       
@@ -150,8 +144,6 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       if (!authToken) {
         throw new Error('No authentication token found');
       }
-
-      console.log("Initializing UPI verification...");
       
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
@@ -166,8 +158,6 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
           }
         }
       );
-
-      console.log("UPI initialization response:", response.data);
 
       if (response.data?.data) {
         setUpiData(response.data.data);
@@ -188,7 +178,6 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
 
   const generateQRCode = async (paymentLink: string) => {
     try {
-      console.log("Generating QR code for payment link:", paymentLink);
       const qrCodeDataUrl = await QRCode.toDataURL(paymentLink, {
         width: 200,
         margin: 2,
@@ -205,19 +194,15 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
 
   const checkUpiStatus = async () => {
     if (!isPollingRef.current) {
-      console.log("Polling stopped, skipping status check");
       return;
     }
 
     try {
       const authToken = Cookies.get('authToken');
       if (!authToken) {
-        console.log("No auth token, stopping polling");
         stopPolling();
         return;
       }
-
-      console.log("Checking UPI status...");
       
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
@@ -234,11 +219,8 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         }
       );
 
-      console.log("UPI status response:", response.status, response.data);
-
       // If successful (status 201), UPI payment is complete
       if (response.status === 201) {
-        console.log("UPI payment completed successfully!");
         stopPolling();
         setIsValidatingName(true);
         
@@ -246,8 +228,6 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         
         // Get bank details from response
         const bankDetails = response.data?.data?.bank || response.data?.data;
-        
-        console.log("UPI payment successful, bank details:", bankDetails);
         
         // If onUpiSuccess callback is provided, use it for validation
         if (onUpiSuccess && bankDetails) {
@@ -283,25 +263,17 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
     } catch (err: unknown) {
       const error = err as { response?: { status?: number; data?: { message?: string } } };
       
-      console.log("UPI status check error:", error.response?.status, error.response?.data);
-      
       if (error.response?.status === 204) {
-        // 204 means still pending, continue polling
-        console.log("UPI payment still pending, continuing to poll...");
         return;
       } else if (error.response?.status === 406) {
-        // 406 means validation failed
-        console.log("UPI validation failed");
         stopPolling();
         setError("UPI verification failed. Please try again or use manual bank details.");
       } else if (error.response?.status === 401) {
-        // 401 unauthorized - stop polling
-        console.log("Unauthorized, stopping polling");
         stopPolling();
         setError("Session expired. Please refresh and try again.");
       } else {
         // For other errors, log but continue polling for a few more attempts
-        console.warn("UPI status check error (continuing polling):", err);
+        console.warn(err);
       }
     }
   };
@@ -318,9 +290,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
     }
   };
 
-  const handleRetry = () => {
-    console.log("Retrying UPI verification...");
-    
+  const handleRetry = () => { 
     // Reset all states
     setTimeLeft(300);
     setError(null);

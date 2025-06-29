@@ -146,7 +146,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return response.data.data.full_name;
       }
     } catch (error) {
-      console.warn("Could not fetch PAN details:", error);
+      console.warn(error);
     }
 
     return null;
@@ -266,8 +266,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     const normalized1 = normalize(name1);
     const normalized2 = normalize(name2);
     
-    console.log("Comparing names:", { bank: normalized1, govId: normalized2 });
-    
     // Exact match
     if (normalized1 === normalized2) return true;
     
@@ -281,7 +279,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     );
     
     const isMatch = matchingWords.length >= Math.min(2, Math.min(words1.length, words2.length));
-    console.log("Name match result:", { matchingWords, isMatch });
     
     return isMatch;
   };
@@ -332,8 +329,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
   }
 
   const handleUpiSuccess = async (upiData: UpiData) => {
-    console.log("UPI success data:", upiData);
-    
     // If UPI data contains bank account holder name, validate immediately
     if (upiData?.full_name || upiData?.account_holder_name || upiData?.name) {
       const bankAccountHolderName = upiData.full_name || upiData.account_holder_name || upiData.name;
