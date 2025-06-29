@@ -73,6 +73,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
   const [faceDetector, setFaceDetector] = useState<MediaPipeFaceDetection | null>(null);
   const [hasShownNoFaceToast, setHasShownNoFaceToast] = useState(false);
+  const [isMonitoringFace, setIsMonitoringFace] = useState(false); // New state to track if we're actively monitoring
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -179,8 +180,8 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
             console.log(`Face detected! Confidence: ${results.detections[0].score.toFixed(3)}`);
           }
           
-          // Show toast if no face detected after camera starts (only once)
-          if (showCamera && !faceDetected && !hasShownNoFaceToast) {
+          // Show toast if no face detected after camera starts (only once per session)
+          if (isMonitoringFace && !faceDetected && !hasShownNoFaceToast) {
             // Clear any existing timeout
             if (noFaceToastTimeoutRef.current) {
               clearTimeout(noFaceToastTimeoutRef.current);
@@ -188,7 +189,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
             
             // Set timeout to show toast after 3 seconds of no face detection
             noFaceToastTimeoutRef.current = setTimeout(() => {
-              if (!isFaceDetected && showCamera) {
+              if (!isFaceDetected && isMonitoringFace) {
                 toast.error("Face not recognized! Please position your face clearly in front of the camera.");
                 setHasShownNoFaceToast(true);
               }
@@ -230,15 +231,16 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         }
         
         console.log('Starting face detection...');
+        setIsMonitoringFace(true);
         detectionIntervalRef.current = setInterval(() => {
-          if (videoRef.current && videoRef.current.readyState >= 2 && faceDetector) {
+          if (videoRef.current && videoRef.current.readyState >= 2 && faceDetector && isMonitoringFace) {
             try {
               faceDetector.send({ image: videoRef.current });
             } catch (error) {
               console.error('Error sending frame to face detector:', error);
             }
           }
-        }, 500); // Changed to 500ms as requested
+        }, 500);
       };
 
       // Wait for video to be ready
@@ -258,9 +260,10 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           clearInterval(detectionIntervalRef.current);
           detectionIntervalRef.current = null;
         }
+        setIsMonitoringFace(false);
       };
     }
-  }, [showCamera, faceDetector, isMediaPipeLoaded]);
+  }, [showCamera, faceDetector, isMediaPipeLoaded, isMonitoringFace]);
 
   // Check if IPV is already completed and show toast
   useEffect(() => {
@@ -373,7 +376,8 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       setShowCamera(true);
       setError(null);
       setIsFaceDetected(false);
-      setHasShownNoFaceToast(false); // Reset toast flag when starting camera
+      setHasShownNoFaceToast(false);
+      setIsMonitoringFace(true);
       
       // Clear any existing no-face toast timeout
       if (noFaceToastTimeoutRef.current) {
@@ -413,6 +417,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
             });
             setImageFile(capturedFile);
             setShowCamera(false);
+            setIsMonitoringFace(false); // Stop monitoring after capture
             toast.success("Face detected and photo captured successfully!");
 
             // Stop all video tracks when photo is captured
@@ -432,9 +437,9 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       return false;
     }
     
-    // If showing camera, require face detection
+    // If showing camera, require face detection and monitoring must be active
     if (showCamera) {
-      return !isFaceDetected || isLoading;
+      return !isFaceDetected || isLoading || !isMonitoringFace;
     }
     
     // If not showing camera, require image file
@@ -548,8 +553,9 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setIsInitialized(false);
     setIpvUid(null);
     setCameraAutoStarted(false);
-    setWantsToReverify(true); // Set intent to re-verify
+    setWantsToReverify(true);
     setHasShownNoFaceToast(false);
+    setIsMonitoringFace(false);
     
     // Clear any existing timeouts
     if (noFaceToastTimeoutRef.current) {
@@ -568,6 +574,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setCameraAutoStarted(false);
     setIsFaceDetected(false);
     setHasShownNoFaceToast(false);
+    setIsMonitoringFace(false);
     
     // Clear any existing timeouts
     if (noFaceToastTimeoutRef.current) {
@@ -584,6 +591,23 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     
     // Set the intent to re-verify (this will trigger useEffect)
     setWantsToReverify(true);
+  };
+
+  const handleRecapturePhoto = () => {
+    setImageFile(null);
+    setError(null);
+    setIsFaceDetected(false);
+    setHasShownNoFaceToast(false);
+    setIsMonitoringFace(true);
+    
+    // Clear any existing timeouts
+    if (noFaceToastTimeoutRef.current) {
+      clearTimeout(noFaceToastTimeoutRef.current);
+      noFaceToastTimeoutRef.current = null;
+    }
+    
+    // Restart camera
+    setTimeout(() => startCamera(), 100);
   };
 
   // Initialize camera when showCamera becomes true
@@ -615,6 +639,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           console.error("Camera access error:", err);
           setError("Camera access failed. Please enable permissions or use the mobile camera option.");
           setShowCamera(false);
+          setIsMonitoringFace(false);
         }
       }
     };
@@ -636,6 +661,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setShowCamera(false);
     setIsFaceDetected(false);
     setHasShownNoFaceToast(false);
+    setIsMonitoringFace(false);
     
     // Clear any existing timeouts
     if (noFaceToastTimeoutRef.current) {
@@ -739,7 +765,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     if (isLoading) return "Uploading...";
     if (shouldShowCompletedState) return "Continue";
     if (showCamera) {
-      return isFaceDetected ? "Capture Photo" : "Detecting Face...";
+      return isFaceDetected && isMonitoringFace ? "Capture Photo" : "Detecting Face...";
     }
     return "Continue";
   };
@@ -835,18 +861,11 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         {imageFile && !shouldShowCamera && (
           <div className="flex justify-center mt-4">
             <Button
-              onClick={() => {
-                setImageFile(null);
-                setError(null);
-                setIsFaceDetected(false);
-                setHasShownNoFaceToast(false);
-                // Auto-restart camera
-                setTimeout(() => startCamera(), 100);
-              }}
+              onClick={handleRecapturePhoto}
               variant="outline"
               className="py-2"
             >
-              Re-Capture
+              Recapture Photo
             </Button>
           </div>
         )}
