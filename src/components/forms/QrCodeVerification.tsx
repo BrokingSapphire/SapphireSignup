@@ -214,7 +214,7 @@ const QrCodeVerification: React.FC<QrCodeVerificationProps> = ({
           toast.error("Session expired. Please restart the process.");
         } else {
           // For other errors, continue polling but show a warning
-          console.warn("Polling error:", err);
+          console.warn(err);
           setVerificationStatus('waiting');
         }
       } else {

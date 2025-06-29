@@ -78,7 +78,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
 
     // If not completed, initialize eSign
     if (!isInitialized && !isLoading && !esignUrl) {
-      console.log("Calling initializeEsign from useEffect");
       initializeEsign();
     }
   }, [isStepCompleted(CheckpointStep.ESIGN)]); // Only depend on step completion
@@ -87,7 +86,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
   useEffect(() => {
     const data = initialData as { esign?: boolean } | undefined;
     if (isCompleted && data?.esign) {
-      console.log("eSign completed from initialData");
       setIsInitialized(true);
     }
   }, [initialData, isCompleted]);
@@ -96,7 +94,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'CLOSE_POPUP' || event.data?.type === 'ESIGN_COMPLETED') {
-        console.log("Received close/completion message from popup");
         cleanupPopup();
         
         // If it's a completion message, trigger a check
@@ -141,7 +138,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
       try {
         esignWindowRef.current.close();
       } catch (error) {
-        console.log("Error closing popup:", error);
+        console.error("Error closing popup:", error);
       }
       esignWindowRef.current = null;
     }
@@ -154,11 +151,8 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
   };
 
   const initializeEsign = async () => {
-    console.log("initializeEsign called - isLoading:", isLoading, "esignUrl:", esignUrl);
-    
     // Prevent multiple simultaneous calls
     if (isLoading || esignUrl) {
-      console.log("Already initializing or URL exists, skipping...");
       return;
     }
 
@@ -177,8 +171,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
         return;
       }
 
-      console.log("Making API call to initialize eSign session...");
-
       // Initialize eSign session
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
@@ -194,10 +186,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
         }
       );
 
-      console.log("eSign initialization response:", response.data);
-
       if (response.data?.data?.uri) {
-        console.log("eSign session initialized with URL:", response.data.data.uri);
         setEsignUrl(response.data.data.uri);
         setIsInitialized(true);
       } else {
@@ -239,9 +228,7 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
     }
   };
 
-  const startBackgroundPolling = () => {
-    console.log("Starting background polling for eSign completion...");
-    
+  const startBackgroundPolling = () => { 
     // Clear any existing polling interval
     cleanupPolling();
     
@@ -251,12 +238,9 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
         const authToken = Cookies.get('authToken');
         
         if (!authToken) {
-          console.log("No auth token, stopping polling");
           cleanupPolling();
           return;
         }
-        
-        console.log("Background polling for eSign completion...");
         
         // Step 1: First call the POST complete API to trigger completion check
         try {
@@ -272,7 +256,9 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
               },
             }
           );
-          console.log("eSign POST complete response:", completeResponse.status, completeResponse.data);
+          if (completeResponse.status !== 200) {
+            console.warn(completeResponse.status);
+          }
         } catch (completeError) {
           const err = completeError as {
             response?: {
@@ -280,11 +266,9 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
               data?: unknown;
             };
           };
-          console.log("eSign POST complete error:", err.response?.status, err.response?.data);
           
           // If POST complete fails with 401/404, eSign is not ready yet - continue polling
           if (err.response?.status === 401 || err.response?.status === 404) {
-            console.log("eSign not ready yet, continuing to poll...");
             return;
           }
         }
@@ -299,11 +283,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
           }
         );
 
-        console.log("eSign GET status check response:", statusResponse.status, statusResponse.data);
-        console.log("eSign response.data:", JSON.stringify(statusResponse.data, null, 2));
-        console.log("eSign response.data.data:", statusResponse.data?.data);
-        console.log("eSign response.data.data.url:", statusResponse.data?.data?.url);
-
         // Step 3: Validate completion using same logic as useCheckpoint hook
         if (statusResponse.status === 200) {
           const hasData = statusResponse.data?.data;
@@ -311,19 +290,11 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
           const urlValue = statusResponse.data?.data?.url;
           const isValidStructure = hasData && typeof hasUrl !== 'undefined';
           
-          console.log("eSign polling validation:", {
-            hasData,
-            hasUrl,
-            urlValue,
-            isValidStructure,
-            urlLength: urlValue?.length
-          });
-          
           if (isValidStructure) {
             // eSign completed successfully - same validation as useCheckpoint
             cleanupPolling();
-            
-            console.log("eSign completed successfully detected by polling! URL:", urlValue);
+
+            console.warn(urlValue);
             toast.success("eSign completed successfully!");
             
             // Clean up the popup window
@@ -334,11 +305,10 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
             
             // Wait a bit longer for the hook to update, then advance
             setTimeout(() => {
-              console.log("Auto-advancing to next step after eSign completion");
               onNext();
             }, 1000);
           } else {
-            console.log("eSign GET endpoint returned success but invalid data structure for completion");
+            console.warn("eSign GET endpoint returned success but invalid data structure for completion");
           }
         }
         
@@ -350,20 +320,15 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
           };
         };
 
-        console.log("eSign polling error:", error.response?.status, error.response?.data);
-
         // Handle specific eSign polling errors - same as useCheckpoint hook
         if (error.response?.status === 404) {
           // 404 means eSign not found in database - not completed yet
-          console.log("eSign not found in database (404) - not completed yet, continuing to poll...");
           return;
         } else if (error.response?.status === 401) {
           // 401 means eSign not authorized - not completed yet
-          console.log("eSign not authorized (401) - not completed yet, continuing to poll...");
           return;
         } else if (error.response?.status === 500) {
           // 500 server error - continue polling for a bit
-          console.log("Server error (500), continuing to poll...");
           return;
         }
         
@@ -376,7 +341,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
     // Stop polling after 7 minutes (timeout)
     setTimeout(() => {
       cleanupPolling();
-      console.log("eSign polling timeout after 7 minutes");
     }, 7 * 60 * 1000);
   };
 
@@ -385,8 +349,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
       setError("eSign URL not available. Please try again.");
       return;
     }
-
-    console.log("Opening eSign URL:", esignUrl);
 
     // Open eSign URL in new window/tab with specific name and features
     const esignWindow = window.open(
@@ -414,7 +376,6 @@ const LastStepPage: React.FC<LastStepPageProps> = ({
         clearInterval(windowCheckIntervalRef.current!);
         windowCheckIntervalRef.current = null;
         esignWindowRef.current = null;
-        console.log("eSign window was closed");
       }
     }, 1000);
 

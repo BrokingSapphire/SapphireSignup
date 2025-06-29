@@ -23,7 +23,6 @@ const DigilockerSuccessPage: React.FC = () => {
 
     const isInPopup = detectPopup();
     setIsPopup(isInPopup);
-    console.log("Is popup window:", isInPopup);
 
     // Start countdown
     const timer = setInterval(() => {
@@ -60,14 +59,14 @@ const DigilockerSuccessPage: React.FC = () => {
         try {
           window.close();
         } catch (e) {
-          console.log("First close attempt failed:", e);
+          console.error(e);
           
           // Fallback: navigate to about:blank
           setTimeout(() => {
             try {
               window.location.href = 'about:blank';
             } catch (err) {
-              console.log("Navigate to blank failed:", err);
+              console.warn(err);
               // Final fallback: just hide content
               document.body.innerHTML = '<div style="text-align:center;padding:50px;"><h2>Please close this window</h2><p>You can safely close this tab/window now.</p></div>';
             }

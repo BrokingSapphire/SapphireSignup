@@ -64,7 +64,7 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
         }
       } catch (error) {
         // If 204 or other error, income proof not uploaded yet
-        console.log("Income proof not yet uploaded",error);
+        console.error(error);
         setIsIncomeProofCompleted(false);
       }
     };
@@ -225,7 +225,6 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
   const handleUploadAndContinue = async () => {
     // If no changes and already completed, just proceed to next step
     if (!hasChanges() && isIncomeProofCompleted) {
-      console.log("No changes detected, proceeding to next step");
       onNext();
       return;
     }

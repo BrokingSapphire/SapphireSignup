@@ -177,7 +177,6 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
 
     // If no changes and already completed, just proceed to next step
     if (!hasChanges() && isCompleted) {
-      console.log("No changes detected, proceeding to next step");
       onNext();
       return;
     }

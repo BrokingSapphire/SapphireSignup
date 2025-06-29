@@ -64,11 +64,8 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
   }, [signature, isLoading, signatureUid, wantsToResign]); // Dependencies for isButtonDisabled check
 
   const initializeSignature = useCallback(async () => {
-    console.log("initializeSignature called - isLoading:", isLoading, "signatureUid:", signatureUid);
-    
     // Prevent multiple simultaneous calls
     if (isLoading || signatureUid) {
-      console.log("Already initializing or UID exists, skipping...");
       return;
     }
 
@@ -80,8 +77,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
         toast.error("Authentication token not found. Please restart the process.");
         return;
       }
-
-      console.log("Making API call to initialize signature session...");
 
       // Use the correct endpoint for signature initialization
       const response = await axios.post(
@@ -98,7 +93,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       );
 
       if (response.data?.data?.uid) {
-        console.log("Signature session initialized with UID:", response.data.data.uid);
         setSignatureUid(response.data.data.uid);
         setIsInitialized(true);
         
@@ -142,7 +136,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
   // Check if signature is already completed and show toast
   useEffect(() => {
     const isSignatureCompleted = isStepCompleted(CheckpointStep.SIGNATURE);
-    console.log("useEffect triggered - isStepCompleted:", isSignatureCompleted, "wantsToResign:", wantsToResign, "isInitialized:", isInitialized, "isLoading:", isLoading);
     
     if (isSignatureCompleted && !wantsToResign) {
       // Signature is already completed and user doesn't want to re-sign
@@ -160,7 +153,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
     // If not completed OR user wants to re-sign, initialize signature
     // But only if we haven't already initialized and we're not already loading
     if (((!isSignatureCompleted && !isInitialized) || wantsToResign) && !isLoading && !signatureUid) {
-      console.log("Calling initializeSignature from useEffect");
       initializeSignature();
     }
   }, [isStepCompleted, wantsToResign, isInitialized, isLoading, signatureUid, initializeSignature]);
@@ -301,28 +293,21 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
     return new File([u8arr], filename, { type: mime });
   };
 
-  const handleSubmit = async () => {
-    console.log("handleSubmit called - isLoading:", isLoading, "signature:", !!signature, "signatureUid:", !!signatureUid);
-    
+  const handleSubmit = async () => { 
     // Prevent multiple submissions
     if (isLoading) {
-      console.log("Already submitting, please wait...");
       return;
     }
 
     // If already completed and no new signature and not wanting to re-sign, just go to next step
     if (isStepCompleted(CheckpointStep.SIGNATURE) && !signature && !wantsToResign) {
-      console.log("Step completed, no new signature, proceeding to next step");
       onNext();
       return;
     }
 
     if (!signature || !signatureUid) {
-      console.log("Missing signature or UID, cannot submit");
       return;
     }
-
-    console.log("Starting signature submission...");
     setIsLoading(true);
 
     try {
@@ -337,8 +322,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       
       const formData = new FormData();
       formData.append('image', signatureFile);
-
-      console.log("Uploading signature with UID:", signatureUid);
 
       // Use the correct PUT endpoint for signature upload
       await axios.put(
@@ -402,7 +385,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
   };
 
   const handleSignAgain = () => {
-    console.log("User wants to sign again");
     
     // Clear all states first
     setSignature(null);
@@ -427,23 +409,6 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       isLoading || 
       (shouldShowCanvas && !signatureUid));
   };
-
-  // const handleQrCodeClick = () => {
-  //   // If we already have a signatureUid, show QR code immediately
-  //   if (signatureUid) {
-  //     setShowQrCode(true);
-  //     return;
-  //   }
-  //   console.log("QR code clicked - initializing for mobile signature", handleQrCodeClick);
-
-  //   // If we don't have UID, we need to initialize first
-  //   toast.info("Initializing signature session for mobile device...");
-  //   setIsInitializingForQr(true);
-  //   setWantsToResign(true);
-    
-  //   // The useEffect will trigger initializeSignature, and once it's done,
-  //   // it will automatically show the QR code due to isInitializingForQr flag
-  // };
 
   // Render QR code component if user clicks "Click Here"
   if (showQrCode && signatureUid) {

@@ -140,7 +140,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         setErrors(prev => ({ ...prev, ifscCode: undefined }));
       }
     } catch (error) {
-      console.log("IFSC API error:", error);
+      console.error(error);
       setBankInfo({});
       setIfscError("Invalid IFSC code or bank not found");
       
@@ -284,7 +284,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
     // If no changes and already completed, validate and proceed
     if (!hasChanges() && isCompleted) {
-      console.log("No changes detected, validating existing bank details");
       const isValid = await validateBankDetails();
       if (isValid) {
         onNext();

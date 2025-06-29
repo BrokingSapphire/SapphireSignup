@@ -222,12 +222,12 @@ const SignatureQrCode: React.FC<SignatureQrCodeProps> = ({
           toast.error(errorMessage);
         } else {
           // For other errors, continue polling but show a warning
-          console.warn("Polling error:", err);
+          console.warn(err);
           setVerificationStatus('waiting');
         }
       } else {
         // Unknown error shape
-        console.warn("Unknown error during polling:", err);
+        console.warn(err);
         setVerificationStatus('waiting');
       }
     }

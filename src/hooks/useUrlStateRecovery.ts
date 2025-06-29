@@ -32,11 +32,8 @@ export const useUrlStateRecovery = () => {
         // Validate timestamp (ensure it's not too old - within 1 hour)
         const oneHour = 60 * 60 * 1000;
         if (Date.now() - decodedState.timestamp > oneHour) {
-          console.log('State data too old, ignoring');
           return;
         }
-
-        console.log('Recovering state from URL:', decodedState);
 
         // Restore auth token
         if (decodedState.token) {
@@ -77,8 +74,6 @@ export const useUrlStateRecovery = () => {
 
         setHasRecovered(true);
         toast.success('Session restored successfully!');
-        
-        console.log('State recovery completed successfully');
 
       } catch (error) {
         console.error('Error recovering state from URL:', error);
