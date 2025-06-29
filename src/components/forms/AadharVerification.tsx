@@ -749,37 +749,7 @@ const AadhaarVerification = ({
     );
   }
 
-  // Show completed state
-  if (shouldShowCompletedState) {
-    return (
-      <div className="mx-auto -mt-28 sm:mt-0 pt-20">
-        <FormHeading
-          title="Verify Aadhaar (DigiLocker)"
-          description="Fast and easy Aadhaar-based verification."
-        />
-
-        <div className="flex justify-center mb-6">
-          <div className="inline-block">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-          </div>
-        </div>
-
-        <Button 
-          variant="ghost"
-          onClick={onNext} 
-          className="py-6 w-full"
-        >
-          Continue
-        </Button>
-      </div>
-    );
-  }
-
-  // Show main DigiLocker interface
+  // Show main DigiLocker interface - SAME UI FOR BOTH COMPLETED AND NOT COMPLETED
   return (
     <div className="mx-auto -mt-28 sm:mt-0 pt-20">
       <FormHeading
@@ -872,13 +842,15 @@ const AadhaarVerification = ({
         {isLoading && (
           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
         )}
-        {shouldShowCompletedState ? "Continue to Next Step" : (isLoading ? "Setting up DigiLocker..." : "Proceed to DigiLocker")}
+        {shouldShowCompletedState ? "Continue" : (isLoading ? "Setting up DigiLocker..." : "Proceed to DigiLocker")}
       </Button>
 
       <div className="hidden lg:block mt-4 text-center text-xs text-gray-600">
         <p>
-          Clicking the button will open DigiLocker in a new window. 
-          Complete the process there and this page will automatically proceed to the next step.
+          {shouldShowCompletedState 
+            ? "Aadhaar verification completed. Click Continue to proceed to the next step."
+            : "Clicking the button will open DigiLocker in a new window. Complete the process there and this page will automatically proceed to the next step."
+          }
         </p>
       </div>
     </div>
