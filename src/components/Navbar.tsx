@@ -55,7 +55,7 @@ const Navbar = () => {
     <>
       <nav className="fixed font-poppins w-full top-0 z-50 bg-white backdrop-blur-md shadow-sm">
         <div className="xl:max-w-7xl mx-auto flex items-center justify-between py-4 pl-4 px-6 lg:px-20">
-          <Link href="/">
+          <Link href="https://www.sapphirebroking.com">
             <div className="items-center flex">
               <Image
                 src="/logo.svg"

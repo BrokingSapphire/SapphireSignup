@@ -1,0 +1,57 @@
+name: Deploy to EC2 (Main)
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Node.js and Build
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20.x'
+          
+      - name: Install dependencies and build
+        run: |
+          echo """${{ secrets.ENV }}""" > .env
+          npm ci
+          npm run build
+          
+      - name: Deploy to Server
+        uses: easingthemes/ssh-deploy@main
+        with:
+          SSH_PRIVATE_KEY: ${{ secrets.EC2_KEY }}
+          ARGS: "-rlgoDzvc -i --delete"
+          SOURCE: ".next/standalone/ .next/static public"
+          REMOTE_HOST: ${{ secrets.EC2_HOST }}
+          REMOTE_USER: ${{ secrets.EC2_USER }}
+          TARGET: ${{ secrets.REMOTE_TARGET }}
+          SCRIPT_BEFORE: |
+            whoami
+            mkdir -p ${{ secrets.REMOTE_TARGET }}
+          SCRIPT_BEFORE_REQUIRED: true
+          SCRIPT_AFTER: |
+            cd "${{ secrets.REMOTE_TARGET }}"
+            screen -S sapphire-signup -X quit || true
+            
+            if ! command -v nvm &> /dev/null; then
+              echo "Installing Node.js..."
+              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+              nvm install 20
+              nvm use 20
+            fi
+            
+            mv static .next/
+            
+            echo "Starting signup..."
+            PORT=${{ secrets.EC2_PORT }} screen -S sapphire-signup -d -m $(which node) server.js
+          SCRIPT_AFTER_REQUIRED: true
