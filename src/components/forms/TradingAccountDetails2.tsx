@@ -135,7 +135,6 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
 
     // If no changes and already completed, just proceed to next step
     if (!hasChanges() && isCompleted) {
-      console.log("No changes detected, proceeding to next step");
       onNext();
       return;
     }

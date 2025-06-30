@@ -31,7 +31,6 @@ const EsignSuccessPage: React.FC = () => {
     if (window.opener) {
       window.close();
     }
-     console.log("clicked");
   };
 
   // Determine if the window can be closed programmatically

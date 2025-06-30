@@ -23,12 +23,9 @@ const getFullNameFromStorage = () => {
   
   for (const source of sources) {
     if (source && source.trim()) {
-      console.log("Found full_name from storage:", source);
       return source.trim();
     }
   }
-  
-  console.log("No full_name found in storage, using empty string");
   return "";
 };
 
@@ -106,7 +103,6 @@ const AadhaarVerification = ({
     const checkForFullName = () => {
       const currentFullName = getFullNameFromStorage();
       if (currentFullName && currentFullName !== mismatchFormData.full_name) {
-        console.log("Updating full_name from storage:", currentFullName);
         setMismatchFormData(prev => ({
           ...prev,
           full_name: currentFullName
@@ -119,7 +115,6 @@ const AadhaarVerification = ({
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'full_name' && e.newValue) {
-        console.log("full_name updated via storage event:", e.newValue);
         setMismatchFormData(prev => ({
           ...prev,
           full_name: e.newValue || ""
@@ -140,7 +135,6 @@ const AadhaarVerification = ({
     const panData = getStepData(CheckpointStep.PAN);
     if (panData?.full_name && typeof panData.full_name === 'string') {
       const panFullName = panData.full_name.trim();
-      console.log("Found full_name from PAN step data:", panFullName);
       
       localStorage.setItem("full_name", panFullName);
       
@@ -171,8 +165,6 @@ const AadhaarVerification = ({
     // Check for existing mismatch data
     if (hasMismatchData()) {
       const existingMismatchData = getMismatchData();
-      console.log('Found existing mismatch data:', existingMismatchData);
-      
       setMismatchInfo({
         pan_masked_aadhaar: typeof existingMismatchData?.pan_masked_aadhaar === 'string'
           ? existingMismatchData.pan_masked_aadhaar
@@ -200,7 +192,6 @@ const AadhaarVerification = ({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.type === 'CLOSE_POPUP' || event.data?.type === 'DIGILOCKER_COMPLETED') {
-        console.log("Received close/completion message from popup");
         cleanupPopup();
         
         // If it's a completion message, trigger a check
@@ -234,7 +225,7 @@ const AadhaarVerification = ({
       try {
         digilockerWindowRef.current.close();
       } catch (error) {
-        console.log("Error closing popup:", error);
+        console.error("Error closing DigiLocker popup:", error);
       }
       digilockerWindowRef.current = null;
     }
@@ -247,8 +238,6 @@ const AadhaarVerification = ({
   };
 
   const startBackgroundPolling = () => {
-    console.log("Starting background polling for Aadhaar completion...");
-    
     // Clear any existing polling interval
     cleanupPolling();
     
@@ -263,12 +252,9 @@ const AadhaarVerification = ({
         const authToken = Cookies.get('authToken');
         
         if (!authToken) {
-          console.log("No auth token, stopping polling");
           cleanupPolling();
           return;
         }
-        
-        console.log("Background polling for Aadhaar completion...");
         
         // Step 1: First call the POST complete API to trigger completion check
         try {
@@ -284,7 +270,6 @@ const AadhaarVerification = ({
               },
             }
           );
-          console.log("Aadhaar POST complete response:", completeResponse.status, completeResponse.data);
           
           // Check for Aadhaar mismatch in POST response
           if (completeResponse.data?.data?.requires_additional_verification) {
@@ -314,11 +299,10 @@ const AadhaarVerification = ({
               data?: unknown;
             };
           };
-          console.log("Aadhaar POST complete error:", err.response?.status, err.response?.data);
-          
+          console.error("Aadhaar POST complete error:", err.response?.status, err.response?.data);
+
           // If POST complete fails with 401/404, Aadhaar is not ready yet - continue polling
           if (err.response?.status === 401 || err.response?.status === 404) {
-            console.log("Aadhaar not ready yet, continuing to poll...");
             return;
           }
         }
@@ -333,15 +317,12 @@ const AadhaarVerification = ({
           }
         );
 
-        console.log("Aadhaar GET status check response:", statusResponse.status, statusResponse.data);
-
         // Step 3: Validate completion using same logic as useCheckpoint hook
         if (statusResponse.status === 200 && statusResponse.data?.data) {
           // Aadhaar completed successfully - same validation as useCheckpoint
           cleanupPolling();
           
           if (isComponentMounted.current) {
-            console.log("Aadhaar completed successfully detected by polling!");
             toast.success("Aadhaar verification completed successfully!");
             
             // Clean up the popup window
@@ -353,7 +334,6 @@ const AadhaarVerification = ({
             // Wait a bit for the hook to update, then advance
             setTimeout(() => {
               if (isComponentMounted.current) {
-                console.log("Auto-advancing to next step after Aadhaar completion");
                 onNext();
               }
             }, 1000);
@@ -368,20 +348,17 @@ const AadhaarVerification = ({
           };
         };
 
-        console.log("Aadhaar polling error:", error.response?.status, error.response?.data);
+        console.error("Aadhaar polling error:", error.response?.status, error.response?.data);
 
         // Handle specific Aadhaar polling errors - same as useCheckpoint hook
         if (error.response?.status === 404) {
           // 404 means Aadhaar not found in database - not completed yet
-          console.log("Aadhaar not found in database (404) - not completed yet, continuing to poll...");
           return;
         } else if (error.response?.status === 401) {
           // 401 means Aadhaar not authorized - not completed yet
-          console.log("Aadhaar not authorized (401) - not completed yet, continuing to poll...");
           return;
         } else if (error.response?.status === 500) {
           // 500 server error - continue polling for a bit
-          console.log("Server error (500), continuing to poll...");
           return;
         }
         
@@ -395,7 +372,6 @@ const AadhaarVerification = ({
     setTimeout(() => {
       if (isComponentMounted.current) {
         cleanupPolling();
-        console.log("Aadhaar polling timeout after 7 minutes");
       }
     }, 7 * 60 * 1000);
   };
@@ -410,7 +386,6 @@ const AadhaarVerification = ({
 
     // Prevent multiple clicks while processing
     if (isLoading) {
-      console.log("Already processing, ignoring click");
       return;
     }
 
@@ -422,8 +397,6 @@ const AadhaarVerification = ({
 
       // If no URL yet, initialize DigiLocker first
       if (!urlToOpen) {
-        console.log("No DigiLocker URL found, initializing...");
-        
         // Get the auth token
         const authToken = Cookies.get('authToken');
         
@@ -434,8 +407,6 @@ const AadhaarVerification = ({
 
         // Updated redirect URL to the success page
         const redirectUrl = `${window.location.origin}/digilocker-success`;
-
-        console.log("Making API call to initialize DigiLocker session...");
 
         // Initialize DigiLocker session
         const response = await axios.post(
@@ -453,11 +424,8 @@ const AadhaarVerification = ({
           }
         );
 
-        console.log("DigiLocker initialization response:", response.data);
-
         if (response.data?.data?.uri) {
           urlToOpen = response.data.data.uri;
-          console.log("DigiLocker session initialized with URL:", urlToOpen);
           setDigilockerUrl(urlToOpen);
           setIsInitialized(true);
         } else {
@@ -467,8 +435,6 @@ const AadhaarVerification = ({
       }
 
       // Now open the popup with the URL we have
-      console.log("Opening DigiLocker URL:", urlToOpen);
-
       const digilockerWindow = window.open(
         urlToOpen,
         'digilocker',
@@ -510,7 +476,6 @@ const AadhaarVerification = ({
           clearInterval(windowCheckIntervalRef.current!);
           windowCheckIntervalRef.current = null;
           digilockerWindowRef.current = null;
-          console.log("DigiLocker window was closed");
         }
       }, 1000);
 

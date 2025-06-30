@@ -143,7 +143,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return response.data.data.full_name;
       }
     } catch (error) {
-      console.warn("Could not fetch PAN details:", error);
+      console.warn(error);
     }
 
     return null;
@@ -405,8 +405,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
   }
 
   const handleUpiSuccess = async (upiData: UpiData) => {
-    console.log("UPI success data:", upiData);
-    
     // If UPI data contains bank account holder name, validate immediately
     if (upiData?.full_name || upiData?.account_holder_name || upiData?.name) {
       const bankAccountHolderName = upiData.full_name || upiData.account_holder_name || upiData.name;

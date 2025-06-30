@@ -129,9 +129,6 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
     // Get email from localStorage with enhanced parsing
     const storedEmail = getEmailFromStorage();
     setEmail(storedEmail);
-    
-    // Debug logging
-    console.log("Mobile verification - Retrieved email from localStorage:", storedEmail);
   }, [initialData, isCompleted]);
 
   // Only auto-advance if manually verified in this session

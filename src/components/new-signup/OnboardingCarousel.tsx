@@ -56,8 +56,6 @@ const OnboardingCarousel = () => {
   // ENHANCED: Complete cleanup utility function with clientId preservation
   const performCompleteCleanup = useCallback(async (preserveClientId = true) => {
     try {
-      console.log('Performing complete cleanup...');
-      
       // Save clientId if we want to preserve it
       let savedClientId = null;
       if (preserveClientId && typeof window !== 'undefined') {
@@ -85,8 +83,6 @@ const OnboardingCarousel = () => {
       queryClient.clear();
       queryClient.invalidateQueries();
       queryClient.removeQueries();
-      
-      console.log('Complete cleanup performed successfully');
       return true;
     } catch {
       console.error('Error during complete cleanup');
@@ -121,13 +117,10 @@ const OnboardingCarousel = () => {
 
   // NEW: Clear storage immediately when reaching congratulations page
   useEffect(() => {
-    if (currentStep === 15 && !hasCleanedOnCongratulations) {
-      console.log('Reached congratulations page - performing cleanup immediately');
-      
+    if (currentStep === 15 && !hasCleanedOnCongratulations) {  
       // Perform cleanup with clientId preservation
       performCompleteCleanup(true).then(() => {
         setHasCleanedOnCongratulations(true);
-        console.log('Cleanup completed on congratulations page');
       });
     }
   }, [currentStep, hasCleanedOnCongratulations, performCompleteCleanup]);
@@ -135,8 +128,6 @@ const OnboardingCarousel = () => {
   // ENHANCED: Congratulations completion handler (now just for any final cleanup)
   const handleCongratulationsComplete = useCallback(async () => {
     try {
-      console.log('Congratulations complete handler called');
-      // Cleanup already happened when reaching the page, so this is just for any final actions
     } catch (error) {
       console.error('Error in congratulations complete handler:', error);
     }
@@ -185,7 +176,6 @@ const OnboardingCarousel = () => {
   useEffect(() => {
     // Wait for both checkpoint loading, client initialization AND URL recovery
     if (!checkpointLoading && isClientInitialized && !isInitialized && !isRecovering) {
-      console.log('Client initialized, resuming from step:', resumeStep);
       setCurrentStep(resumeStep);
       
       // Check if user has reached esign step (step 12) or beyond
@@ -199,13 +189,10 @@ const OnboardingCarousel = () => {
       if (typeof window !== 'undefined') {
         const storedClientId = localStorage.getItem('clientId');
         if (storedClientId) {
-          // console.log('Found existing client ID in localStorage:', storedClientId);
         } else {
-          // Try to get client ID from checkpoint data and save to localStorage
           const existingClientId = getClientId();
           if (existingClientId) {
             localStorage.setItem('clientId', existingClientId);
-            // console.log('Saved client ID from checkpoint to localStorage:', existingClientId);
           }
         }
       }
@@ -232,8 +219,6 @@ const OnboardingCarousel = () => {
           );
           
           if (response.status === 200 && response.data?.data?.url) {
-            console.log("Income proof is confirmed, proceeding to next step");
-            
             // Refetch investment segment data
             refetchStep(CheckpointStep.INVESTMENT_SEGMENT);
             refetchStep(CheckpointStep.INCOME_PROOF);
@@ -300,12 +285,8 @@ const OnboardingCarousel = () => {
         // If income proof is required (either by backend flag or risk segments)
         if (requiresIncomeProof || hasRiskSegments) {
           const incomeProofCompleted = isStepCompleted(CheckpointStep.INCOME_PROOF);
-          // console.log(`Investment step completion check: investmentCompleted=${investmentCompleted}, requiresIncomeProof=${requiresIncomeProof}, hasRiskSegments=${hasRiskSegments}, incomeProofCompleted=${incomeProofCompleted}`);
           return incomeProofCompleted;
         }
-        
-        // If no income proof required, investment segment completion is sufficient
-        // console.log(`Investment step completion check: investmentCompleted=${investmentCompleted}, no income proof required`);
         return true;
       case 5: // User Detail
         return isStepCompleted(CheckpointStep.USER_DETAIL);
@@ -484,8 +465,6 @@ const OnboardingCarousel = () => {
 
   // NEW: Enhanced step completion handler
   const handleStepCompletion = useCallback(async (stepType: CheckpointStep) => {
-    console.log(`Step ${stepType} completed, invalidating cache and proceeding...`);
-    
     // Invalidate the specific step cache
     refetchStep(stepType);
     
@@ -525,8 +504,6 @@ const OnboardingCarousel = () => {
         );
         
         if (response.status === 200 && response.data?.data?.url) {
-          console.log("Income proof is confirmed, proceeding to next step");
-          
           // Force advance to next step
           setForceProgress(true);
           handleNext(true);
@@ -684,8 +661,6 @@ const OnboardingCarousel = () => {
       component: (
         <SetPassword 
           onNext={() => {
-            console.log('SetPassword completed');
-            // Client ID is now handled in localStorage within SetPassword component
             handleStepCompletion(CheckpointStep.PASSWORD_SETUP);
           }}
           initialData={getStepData(CheckpointStep.PASSWORD_SETUP) ?? undefined}
@@ -698,8 +673,6 @@ const OnboardingCarousel = () => {
       component: (
         <MPIN 
           onNext={() => {
-            console.log('MPIN completed');
-            // Client ID is now retrieved from localStorage within MPIN component
             handleStepCompletion(CheckpointStep.MPIN_SETUP);
           }}
           clientId={getStoredClientId() ?? undefined} // Pass client ID from localStorage, convert null to undefined

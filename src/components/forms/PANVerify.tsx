@@ -32,15 +32,12 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
     } | undefined;
 
     if (isCompleted && data) {
-      // If step is completed, prefill all data
-      console.log("Prefilling PAN data:", data);
       setPanNumber(data.pan_number || "");
       
       // ENHANCED: Always save full_name to localStorage when available
       if (data.full_name) {
         setFullName(data.full_name);
         localStorage.setItem("full_name", data.full_name);
-        console.log("Saved full_name to localStorage:", data.full_name);
       }
       
       if (data.dob) {
@@ -55,7 +52,6 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
       const storedFullName = localStorage.getItem("full_name");
       if (storedFullName) {
         setFullName(storedFullName);
-        console.log("Retrieved full_name from localStorage:", storedFullName);
       }
     }
   }, [initialData, isCompleted]);
@@ -122,7 +118,6 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
       } | undefined;
       
       if (data?.pan_number === panNumber) {
-        console.log("PAN unchanged, proceeding to next step without API call");
         onNext();
         return;
       }
@@ -140,8 +135,6 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
         return;
       }
 
-      console.log("Submitting PAN:", panNumber);
-
       // Call checkpoint API with PAN step
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
@@ -157,8 +150,6 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
         }
       );
 
-      console.log("PAN submission response:", response.data);
-
       if (!response.data) {
         toast.error("Failed to verify PAN details. Please try again.");
         return;
@@ -168,7 +159,6 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
       if (response.data.data?.full_name) {
         setFullName(response.data.data.full_name);
         localStorage.setItem("full_name", response.data.data.full_name);
-        console.log("Saved full_name to localStorage after PAN verification:", response.data.data.full_name);
       }
 
       // Save other details as well

@@ -199,7 +199,7 @@ const EmailVerification = ({ onNext, initialData, isCompleted }: EmailVerificati
         }
       }
     } catch (error) {
-      console.warn("Error reading stored email:", error);
+      console.warn(error);
       localStorage.removeItem("email");
     }
     return null;

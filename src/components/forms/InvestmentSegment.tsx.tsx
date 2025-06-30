@@ -77,12 +77,11 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
         );
         
         if (response.status === 200 && response.data?.data?.url) {
-          console.log("Income proof already uploaded:", response.data);
           setIsIncomeProofCompleted(true);
         }
       } catch (error) {
         // If 204 or other error, income proof not uploaded yet
-        console.log("Income proof not yet uploaded", error);
+        console.warn(error);
         setIsIncomeProofCompleted(false);
       }
     };
@@ -120,8 +119,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
     setError(null);
 
     try {
-      console.log("Submitting investment segments after risk acceptance:", selectedSegments);
-      
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
         {
@@ -135,8 +132,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
         }
       );
 
-      console.log("Investment segments response:", response);
-
       // Check the response data structure
       if (!response.data) {
         toast.error("Failed to save investment segments. Please try again.");
@@ -148,13 +143,9 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
       const requiresIncomeProof = response.data.data?.requiresIncomeProof || false;
       const segmentsRequiringProof = response.data.data?.segmentsRequiringProof || [];
 
-      console.log("Server response - requiresIncomeProof:", requiresIncomeProof);
-      console.log("Server response - segmentsRequiringProof:", segmentsRequiringProof);
-
       if (requiresIncomeProof && segmentsRequiringProof.length > 0) {
         // Check if income proof is already uploaded
         if (isIncomeProofCompleted) {
-          console.log("Income proof already completed, proceeding to next step");
           // toast.success("Investment segments saved successfully!");
           setTimeout(() => {
             onNext();
@@ -165,8 +156,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
           await handleInitializeIncomeProof();
         }
       } else {
-        // No income proof required
-        console.log("No income proof required, proceeding to next step");
         // toast.success("Investment segments saved successfully!");
         setTimeout(() => {
           onNext();
@@ -206,9 +195,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
     // Check if any selected segments require risk disclosure
     const segmentsRequiringRisk = getSegmentsRequiringProof(selectedSegments);
 
-    console.log("Selected segments:", selectedSegments);
-    console.log("Segments requiring risk:", segmentsRequiringRisk);
-
     // If risk-requiring segments are selected but risk not accepted, show modal
     if (segmentsRequiringRisk.length > 0 && !hasAcceptedRisk) {
       setShowRiskModal(true);
@@ -243,8 +229,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
         return;
       }
       
-      console.log("Income proof initialization response:", response.data);
-      
       // Store the UID from backend response
       setIncomeProofUid(response.data.data.uid);
       setShowUploadIncome(true);
@@ -273,7 +257,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
 
   // Handle upload income proof completion
   const handleIncomeProofNext = async () => {
-    console.log("Income proof upload completed, proceeding to next step");
     setIsIncomeProofCompleted(true);
     
     // Small delay to ensure state is updated
@@ -284,7 +267,6 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
 
   // Skip income proof upload
   const handleSkipIncomeProof = () => {
-    console.log("Income proof upload skipped, proceeding to next step");
     onNext();
   };
 
