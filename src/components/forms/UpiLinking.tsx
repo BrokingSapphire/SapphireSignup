@@ -226,13 +226,21 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         
         toast.success("UPI payment completed! Validating account holder name...");
         
-        // Get bank details from response
+        // Get bank details from response - the account holder name should be in the response
         const bankDetails = response.data?.data?.bank || response.data?.data;
+        const accountHolderName = bankDetails?.account_holder_name || bankDetails?.full_name;
         
         // If onUpiSuccess callback is provided, use it for validation
         if (onUpiSuccess && bankDetails) {
           try {
-            await onUpiSuccess(bankDetails);
+            // Add the account holder name to the bank details for validation
+            const upiDataWithName = {
+              ...bankDetails,
+              account_holder_name: accountHolderName,
+              full_name: accountHolderName
+            };
+            
+            await onUpiSuccess(upiDataWithName);
             setIsValidatingName(false);
           } catch (error) {
             console.error("UPI success validation failed:", error);
@@ -243,11 +251,10 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
           // Fallback to old validation method
           setTimeout(async () => {
             try {
-              const isValid = await validateBankDetails();
+              const isValid = await validateBankDetails(accountHolderName);
               setIsValidatingName(false);
               
               if (isValid) {
-                // toast.success("Bank account verified successfully!");
                 setTimeout(() => {
                   onNext();
                 }, 1500);
@@ -436,6 +443,17 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
               <span className="text-blue-800 text-sm">
                 Waiting for UPI payment completion... 
                 {pollingTimeoutRef.current ? "" : ""}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {isValidatingName && (
+          <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-3"></div>
+              <span className="text-yellow-800 text-sm">
+                Validating account holder name...
               </span>
             </div>
           </div>
