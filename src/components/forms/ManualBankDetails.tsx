@@ -90,7 +90,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   onBack,
   initialData,
   isCompleted,
-  validateBankDetails,
 }) => {
   const [formData, setFormData] = useState<FormData>({
     ifscCode: "",

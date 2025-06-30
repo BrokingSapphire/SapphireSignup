@@ -29,7 +29,6 @@ interface UpiData {
 const UpiLinking: React.FC<UpiLinkingProps> = ({ 
   onBack, 
   onNext,
-  validateBankDetails,
   onUpiSuccess
 }) => {
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
@@ -285,6 +284,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
               onNext();
             }, 1500);
           } catch (error) {
+            console.error("UPI success validation failed:", error);
             setIsValidatingName(false);
             setError('UPI validation completed but failed to save. Please try again.');
           }
