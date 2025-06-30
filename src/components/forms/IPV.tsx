@@ -165,7 +165,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         // Set options with decreased accuracy (0.3) as requested
         detector.setOptions({
           model: 'short_range',
-          minDetectionConfidence: 0.3, // Decreased from 0.6 to 0.3
+          minDetectionConfidence: 0.4, // Decreased from 0.6 to 0.3
         });
         
         detector.onResults((results: MediaPipeResults) => {
@@ -764,7 +764,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       )}
 
       <div className="mb-6">
-        <div className="border-2 border-dashed h-[300px] border-gray-300 rounded-lg flex flex-col items-center justify-center overflow-hidden relative">
+        <div className="border-2 border-dashed h-[240px] w-[80%] mx-auto border-gray-300 rounded-lg flex flex-col items-center justify-center overflow-hidden relative">
           {shouldShowCompletedState ? (
             // Show completed state with option to verify again
             <div className="text-center space-y-4">
@@ -792,7 +792,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
             />
           ) : imageFile ? (
             <div className="space-y-4 w-full flex flex-col items-center">
-              <div className="relative w-full h-[250px]">
+              <div className="relative w-[100%] h-[240px]">
                 <Image
                   src={URL.createObjectURL(imageFile)}
                   alt="IPV Preview"
@@ -824,24 +824,17 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           </div>
         )}
 
-{imageFile && !shouldShowCompletedState && !showCamera && (
-  <div className="flex justify-center mt-4">
-    <Button
-      onClick={handleRecapturePhoto}
-      variant="outline"
-      className="py-6 w-full"
-    >
-      Recapture Photo
-    </Button>
-  </div>
-)}
-
-{error && (
-  <div className="mt-2 p-2 bg-red-50 rounded">
-    <p className="text-red-600 text-sm">{error}</p>
-  </div>
-)}
-
+        {imageFile && !shouldShowCompletedState && !showCamera && (
+          <div className="flex justify-center mt-4">
+            <Button
+              onClick={handleRecapturePhoto}
+              variant="outline"
+              className="py-6 w-full"
+            >
+              Recapture Photo
+            </Button>
+          </div>
+        )}
 
         {error && (
           <div className="mt-2 p-2 bg-red-50 rounded">

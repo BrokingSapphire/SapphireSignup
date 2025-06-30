@@ -377,14 +377,14 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       <div className="mt-2">
         <div className="bg-[#F7F9FD] p-3 rounded flex flex-col md:flex-row gap-4 mt-2 mb-2">
           <div className="flex-1 flex justify-center">
-            <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="bg-white p-1 rounded-lg shadow-sm">
               {qrCodeDataUrl ? (
                 <Image
-                  height={200}
-                  width={200} 
+                  height={160}
+                  width={160} 
                   src={qrCodeDataUrl} 
                   alt="UPI Payment QR Code"
-                  className="w-40 h-40"
+                  className="w-36 h-36"
                 />
               ) : upiData?.payment_link ? (
                 <div className="w-40 h-40 flex items-center justify-center border-2 border-dashed border-gray-300 rounded">

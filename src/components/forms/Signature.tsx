@@ -494,7 +494,7 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       )}
 
       <div className="mb-6">
-        <div className="border-2 border-dashed h-[300px] border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center overflow-hidden">
+        <div className="border-2 border-dashed h-[240px] w-full mx-auto border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center overflow-hidden">
           {shouldShowCompletedState ? (
             // Show completed state with option to sign again
             <div className="text-center space-y-4">
