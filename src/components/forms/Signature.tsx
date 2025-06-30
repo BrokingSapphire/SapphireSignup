@@ -573,7 +573,7 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       <div className="hidden lg:block text-center text-sm text-gray-600 mt-4">
         <p>
           Please sign clearly within the box above. Your signature will be used for document verification.
-          Session expires in 10 minutes. <strong>Press Enter to submit when ready.</strong>
+          Session expires in 10 minutes.
         </p>
       </div>
     </div>

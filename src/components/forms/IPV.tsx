@@ -824,17 +824,24 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           </div>
         )}
 
-        {imageFile && !shouldShowCamera && (
-          <div className="flex justify-center mt-4">
-            <Button
-              onClick={handleRecapturePhoto}
-              variant="outline"
-              className="py-2"
-            >
-              Recapture Photo
-            </Button>
-          </div>
-        )}
+{imageFile && !shouldShowCompletedState && !showCamera && (
+  <div className="flex justify-center mt-4">
+    <Button
+      onClick={handleRecapturePhoto}
+      variant="outline"
+      className="py-6 w-full"
+    >
+      Recapture Photo
+    </Button>
+  </div>
+)}
+
+{error && (
+  <div className="mt-2 p-2 bg-red-50 rounded">
+    <p className="text-red-600 text-sm">{error}</p>
+  </div>
+)}
+
 
         {error && (
           <div className="mt-2 p-2 bg-red-50 rounded">
@@ -853,13 +860,6 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
       >
         {getButtonText()}
       </Button>
-
-      <div className="hidden lg:block text-center text-sm text-gray-600 mt-4">
-        <p>
-          Please ensure your face is clearly visible and well-lit for successful verification.
-          Session expires in 10 minutes. <strong>Press Enter to submit when ready.</strong>
-        </p>
-      </div>
     </div>
   );
 };
