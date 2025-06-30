@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
+import { toast } from "sonner";
 
 interface ManualBankDetailsProps {
   onNext: () => void;
@@ -16,7 +17,7 @@ interface ManualBankDetailsProps {
     };
   };
   isCompleted?: boolean;
-  validateBankDetails: () => Promise<boolean>;
+  validateBankDetails: (bankHolderName?: string) => Promise<boolean>;
 }
 
 interface FormData {
@@ -59,8 +60,34 @@ interface BankInfo {
   state?: string;
 }
 
+// Bank validation API response types
+interface PennyDropResponse {
+  data?: {
+    account_holder_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_type?: string;
+    verification_status?: string;
+    message?: string;
+  };
+  message?: string;
+}
+
+interface CompleteBankValidationResponse {
+  data?: {
+    account_holder_name?: string;
+    account_number?: string;
+    ifsc_code?: string;
+    account_type?: string;
+    verification_status?: string;
+    is_completed?: boolean;
+  };
+  message?: string;
+}
+
 const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   onNext,
+  onBack,
   initialData,
   isCompleted,
   validateBankDetails,
@@ -84,6 +111,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   const [bankInfo, setBankInfo] = useState<BankInfo>({});
   const [isLoadingBankInfo, setIsLoadingBankInfo] = useState(false);
   const [ifscError, setIfscError] = useState<string | null>(null);
+
+  // Bank verification states
+  const [verificationStage, setVerificationStage] = useState<'form' | 'penny_drop' | 'name_validation' | 'completion' | 'success'>('form');
+  const [bankAccountHolderName, setBankAccountHolderName] = useState<string>("");
 
   // Define a type for the bank data received from the API
   interface ApiBankData {
@@ -140,7 +171,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         setErrors(prev => ({ ...prev, ifscCode: undefined }));
       }
     } catch (error) {
-      console.error(error);
+      console.error("IFSC API Error:", error);
       setBankInfo({});
       setIfscError("Invalid IFSC code or bank not found");
       
@@ -188,6 +219,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       if (mappedData.ifscCode) {
         fetchBankDetails(mappedData.ifscCode);
       }
+      
+      // Set verification stage to success for completed banks
+      setVerificationStage('success');
     }
   }, [initialData, isCompleted]);
 
@@ -278,16 +312,143 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return mapping[accountType] || accountType.toLowerCase();
   };
 
+  // Step 1: Penny Drop Verification
+  const performPennyDrop = async (): Promise<string | null> => {
+    setVerificationStage('penny_drop');
+    
+    try {
+      toast.info("Initiating bank account verification...");
+      
+      const response = await axios.post<PennyDropResponse>(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        {
+          step: "bank_validation",
+          validation_type: "bank",
+          bank: {
+            account_number: formData.accountNumber,
+            ifsc_code: formData.ifscCode,
+            account_type: mapAccountTypeToApi(formData.accountType),
+          }
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Cookies.get('authToken')}`,
+          },
+        }
+      );
+
+      console.log("Penny Drop Response:", response.data);
+
+      // Extract account holder name from response
+      const accountHolderName = response.data?.data?.account_holder_name;
+      
+      if (!accountHolderName) {
+        throw new Error("Account holder name not found in response");
+      }
+
+      toast.success("Bank account verified! Validating account holder name...");
+      setBankAccountHolderName(accountHolderName);
+      
+      return accountHolderName;
+      
+    } catch (err: unknown) {
+      console.error("Penny Drop Error:", err);
+      
+      type AxiosErrorResponse = {
+        response?: {
+          data?: { message?: string };
+          status?: number;
+        };
+      };
+
+      if (
+        typeof err === "object" &&
+        err !== null &&
+        "response" in err &&
+        typeof (err as AxiosErrorResponse).response === "object"
+      ) {
+        const response = (err as AxiosErrorResponse).response;
+        
+        if (response?.data?.message) {
+          throw new Error(`Bank verification failed: ${response.data.message}`);
+        } else if (response?.status === 422) {
+          throw new Error("Bank account does not exist or invalid details provided.");
+        } else if (response?.status === 400) {
+          throw new Error("Invalid bank details. Please check and try again.");
+        } else if (response?.status === 401) {
+          throw new Error("Authentication failed. Please restart the process.");
+        } else {
+          throw new Error("Failed to verify bank account. Please try again.");
+        }
+      } else {
+        throw new Error("Failed to verify bank account. Please try again.");
+      }
+    }
+  };
+
+  // Step 2: Name Validation
+  const performNameValidation = async (accountHolderName: string): Promise<boolean> => {
+    setVerificationStage('name_validation');
+    
+    try {
+      toast.info("Validating account holder name with government ID...");
+      
+      const isValid = await validateBankDetails(accountHolderName);
+      
+      if (!isValid) {
+        throw new Error("Account holder name validation failed");
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.error("Name Validation Error:", error);
+      throw error;
+    }
+  };
+
+  // Step 3: Complete Bank Validation
+  const completeBankValidation = async (): Promise<void> => {
+    setVerificationStage('completion');
+    
+    try {
+      toast.info("Finalizing bank verification...");
+      
+      const response = await axios.post<CompleteBankValidationResponse>(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        { step: "complete_bank_validation" },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Cookies.get('authToken')}`,
+          },
+        }
+      );
+
+      console.log("Complete Bank Validation Response:", response.data);
+
+      if (response.data?.data?.is_completed) {
+        toast.success("Bank account verification completed successfully!");
+        setVerificationStage('success');
+      } else {
+        throw new Error("Bank verification completion failed");
+      }
+      
+    } catch (error) {
+      console.error("Complete Bank Validation Error:", error);
+      throw new Error("Failed to complete bank verification. Please try again.");
+    }
+  };
+
+  // Main form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
 
-    // If no changes and already completed, validate and proceed
+    // If no changes and already completed, just proceed
     if (!hasChanges() && isCompleted) {
-      const isValid = await validateBankDetails();
-      if (isValid) {
-        onNext();
-      }
+      onNext();
       return;
     }
 
@@ -310,75 +471,104 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     setError(null);
 
     try {
-      // Submit bank details
-      await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-        {
-          step: "bank_validation",
-          validation_type: "bank",
-          bank: {
-            account_number: formData.accountNumber,
-            ifsc_code: formData.ifscCode,
-            account_type: mapAccountTypeToApi(formData.accountType),
-          }
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Cookies.get('authToken')}`,
-          },
-        }
-      );
+      // Step 1: Perform Penny Drop
+      const accountHolderName = await performPennyDrop();
+      
+      if (!accountHolderName) {
+        throw new Error("Failed to get account holder name");
+      }
 
-      // Wait a moment for the data to be processed, then validate
-      setTimeout(async () => {
-        const isValid = await validateBankDetails();
-        if (isValid) {
-          setTimeout(() => {
-            onNext();
-          }, 1500);
-        }
-      }, 2000);
+      // Step 2: Validate Name
+      await performNameValidation(accountHolderName);
+
+      // Step 3: Complete Bank Validation
+      await completeBankValidation();
+
+      // Step 4: Proceed to next step
+      setTimeout(() => {
+        onNext();
+      }, 1500);
       
     } catch (err: unknown) {
-      type AxiosErrorResponse = {
-        response?: {
-          data?: { message?: string };
-          status?: number;
-        };
-      };
-
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        typeof (err as AxiosErrorResponse).response === "object"
-      ) {
-        const response = (err as AxiosErrorResponse).response;
-        
-        if (response?.data?.message) {
-          setError(`Error: ${response.data.message}`);
-        } else if (response?.status === 422) {
-          setError("Bank account does not exist or invalid details provided.");
-        } else if (response?.status === 400) {
-          setError("Invalid bank details. Please check and try again.");
-        } else if (response?.status === 401) {
-          setError("Authentication failed. Please restart the process.");
-        } else {
-          setError("Failed to verify bank account. Please try again.");
-        }
+      console.error("Bank Verification Process Error:", err);
+      
+      if (err instanceof Error) {
+        setError(err.message);
       } else {
-        setError("Failed to verify bank account. Please try again.");
+        setError("Bank verification failed. Please try again.");
       }
+      
+      // Reset verification stage on error
+      setVerificationStage('form');
+      setBankAccountHolderName("");
+      
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const getButtonText = () => {
-    if (isSubmitting) return "Verifying...";
+    if (isSubmitting) {
+      switch (verificationStage) {
+        case 'penny_drop':
+          return "Verifying Bank Account...";
+        case 'name_validation':
+          return "Validating Name...";
+        case 'completion':
+          return "Completing Verification...";
+        default:
+          return "Verifying...";
+      }
+    }
     if (!hasChanges() && isCompleted) return "Continue";
-    return "Continue";
+    return "Verify Bank Account";
+  };
+
+  const getVerificationStageIndicator = () => {
+    if (!isSubmitting && verificationStage === 'form') return null;
+
+    const stages = [
+      { key: 'penny_drop', label: 'Bank Verification', icon: '🏦' },
+      { key: 'name_validation', label: 'Name Validation', icon: '👤' },
+      { key: 'completion', label: 'Finalizing', icon: '✅' },
+    ];
+
+    return (
+      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+        <h4 className="text-sm font-medium text-blue-800 mb-3">Verification Progress</h4>
+        <div className="space-y-2">
+          {stages.map((stage, index) => {
+            const isCurrentStage = verificationStage === stage.key;
+            const isCompletedStage = stages.findIndex(s => s.key === verificationStage) > index;
+            
+            return (
+              <div key={stage.key} className={`flex items-center space-x-3 ${
+                isCurrentStage ? 'text-blue-800' : isCompletedStage ? 'text-green-600' : 'text-gray-500'
+              }`}>
+                <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs ${
+                  isCurrentStage ? 'bg-blue-200 animate-pulse' : 
+                  isCompletedStage ? 'bg-green-200' : 'bg-gray-200'
+                }`}>
+                  {isCompletedStage ? '✓' : isCurrentStage ? '...' : index + 1}
+                </div>
+                <span className="text-sm">{stage.icon} {stage.label}</span>
+                {isCurrentStage && (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+        
+        {bankAccountHolderName && (
+          <div className="mt-3 p-2 bg-white rounded border border-blue-200">
+            <p className="text-xs text-blue-700">
+              <strong>Account Holder:</strong> {bankAccountHolderName}
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
@@ -391,6 +581,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(' ');
   }
+
   return (
     <div className="w-full -mt-28 sm:mt-4 max-w-2xl mx-auto p-4">
       <FormHeading
@@ -438,14 +629,14 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             <p className="text-xs text-red-500">{errors.ifscCode}</p>
           )}
           
-          {/* Bank Info Display - Single Line */}
+          {/* Bank Info Display */}
           {bankInfo.bankName && !isLoadingBankInfo && (
             <div className="mt-2 p-3 bg-green-50 rounded-lg border border-green-200">
               <div className="text-sm text-green-800">
-                <span className="font-medium">{bankInfo.bankName}{','}</span>
-                {bankInfo.branch && <span> {toTitleCase(bankInfo.branch)},{' '}</span>}
-                {bankInfo.city && <span>{toTitleCase(bankInfo.city)},{' '}</span>}
-                {bankInfo.state && <span>{toTitleCase(bankInfo.state)}</span>}
+                <span className="font-medium">{bankInfo.bankName}</span>
+                {bankInfo.branch && <span>, {toTitleCase(bankInfo.branch)}</span>}
+                {bankInfo.city && <span>, {toTitleCase(bankInfo.city)}</span>}
+                {bankInfo.state && <span>, {toTitleCase(bankInfo.state)}</span>}
               </div>
             </div>
           )}
@@ -462,7 +653,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
         <div className="space-y-2">
           <label htmlFor="accountNumber" className="block text-sm font-medium">
-            A/C Number*
+            Account Number*
           </label>
           <input
             type="text"
@@ -487,9 +678,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             }}
             disabled={isSubmitting}
             className={`w-full p-2 border rounded ${
-              errors.accountNumber ? "border-red-500" : 
-              isCompleted && formData.accountNumber === originalData.accountNumber ? "border-gray-300" : 
-              "border-gray-300"
+              errors.accountNumber ? "border-red-500" : "border-gray-300"
             } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
             placeholder="Enter Account Number"
             maxLength={18}
@@ -531,6 +720,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           )}
         </div>
 
+        {/* Verification Stage Indicator */}
+        {getVerificationStageIndicator()}
+
         {error && (
           <div className="p-3 bg-red-50 rounded border border-red-200">
             <p className="text-red-600 text-sm">{error}</p>
@@ -552,6 +744,30 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             We&apos;ll verify your bank account details for secure transactions. 
             The account holder name must match your Government ID.
           </p>
+          
+          {/* Detailed verification process explanation */}
+          <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
+            <h4 className="text-sm font-medium text-gray-800 mb-2">Verification Process:</h4>
+            <ol className="text-xs text-gray-600 text-left space-y-1">
+              <li>1. <strong>Penny Drop:</strong> ₹1 is deposited to verify account details</li>
+              <li>2. <strong>Name Validation:</strong> Account holder name is matched with your ID</li>
+              <li>3. <strong>Completion:</strong> Bank account is linked to your profile</li>
+              <li>4. <strong>Refund:</strong> ₹1 is refunded within 24 hours</li>
+            </ol>
+          </div>
+        </div>
+
+        {/* Back button */}
+        <div className="flex justify-center mt-4">
+          <Button
+            type="button"
+            variant="link"
+            onClick={onBack}
+            disabled={isSubmitting}
+            className="text-gray-600 hover:text-gray-800"
+          >
+            ← Back to linking options
+          </Button>
         </div>
       </form>
     </div>

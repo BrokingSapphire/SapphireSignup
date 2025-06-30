@@ -26,6 +26,7 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
   initialData,
   isCompleted,
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
   const [maritalStatus, setMaritalStatus] = useState<MaritalStatus | null>(null);
   const [selectedIncome, setSelectedIncome] = useState<IncomeRange | null>(null);
   const [selectedExperience, setSelectedExperience] = useState<ExperienceRange | null>(null);
@@ -127,6 +128,14 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     setError(null);
   };
 
+  const validatePage1 = () => {
+    const isValid = maritalStatus && selectedIncome;
+    setShowValidation(!isValid);
+    return isValid;
+  };
+
+
+
   const validateForm = () => {
     const isValid = maritalStatus && selectedIncome && selectedExperience && selectedSettlement;
     setShowValidation(!isValid);
@@ -169,6 +178,24 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
       trading_exp: selectedExperience ? experienceMapping[selectedExperience] : null,
       acc_settlement: selectedSettlement
     };
+  };
+
+  const handleNext = () => {
+    if (currentPage === 1) {
+      if (validatePage1()) {
+        setCurrentPage(2);
+      }
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    if (currentPage === 2) {
+      setCurrentPage(1);
+      setShowValidation(false);
+      setError(null);
+    }
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -246,247 +273,268 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     }
   };
 
-  const isFormValid = maritalStatus && selectedIncome && selectedExperience && selectedSettlement;
-
   const getButtonText = () => {
     if (isSubmitting) return "Continue";
+    if (currentPage === 1) return "Next";
     return "Continue";
   };
 
   const isButtonDisabled = () => {
     if (isSubmitting) return true;
-    return !isFormValid;
+    if (currentPage === 1) {
+      return !maritalStatus || !selectedIncome;
+    }
+    return !selectedExperience || !selectedSettlement;
   };
+
+  // Page 1 content
+  const renderPage1 = () => (
+    <div className="space-y-6 mt-6">
+      {/* Marital Status */}
+      <div>
+        <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
+          Marital Status<span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {maritalStatusOptions.map((status) => (
+            <button
+              key={status}
+              type="button"
+              onClick={() => handleMaritalStatusSelect(status)}
+              disabled={isSubmitting}
+              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
+                ${
+                  maritalStatus === status
+                    ? "border-teal-800 bg-teal-50 text-teal-800"
+                    : "border-gray-300 text-gray-600 hover:border-gray-400"
+                }
+                ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
+              `}
+            >
+              {status}
+            </button>
+          ))}
+        </div>
+        {showValidation && !maritalStatus && (
+          <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your marital status</p>
+        )}
+      </div>
+
+      {/* Annual Income */}
+      <div>
+        <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
+          Annual Income<span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("< 1 Lakh")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "< 1 Lakh"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-700 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            &lt; 1 Lakh
+          </button>
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("1 - 5 Lacs")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "1 - 5 Lacs"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            1 - 5 Lacs
+          </button>
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("5 - 10 Lacs")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "5 - 10 Lacs"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            5 - 10 Lacs
+          </button>
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("10 - 25 Lacs")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "10 - 25 Lacs"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            10 - 25 Lacs
+          </button>
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("25 - 1 Cr")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "25 - 1 Cr"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            25 - 1 Cr
+          </button>
+          <button
+            type="button"
+            onClick={() => handleIncomeSelect("> 1Cr")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedIncome === "> 1Cr"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            &gt; 1Cr
+          </button>
+        </div>
+        {showValidation && !selectedIncome && (
+          <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your annual income</p>
+        )}
+      </div>
+    </div>
+  );
+
+  // Page 2 content
+  const renderPage2 = () => (
+    <div className="space-y-6 mt-6">
+      {/* Trading Experience */}
+      <div>
+        <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
+          Trading Experience<span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => handleExperienceSelect("No Experience")}
+            disabled={isSubmitting}
+            className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedExperience === "No Experience"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            No Experience
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExperienceSelect("< 1 year")}
+            disabled={isSubmitting}
+            className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedExperience === "< 1 year"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            &lt; 1 year
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExperienceSelect("1 - 5 years")}
+            disabled={isSubmitting}
+            className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedExperience === "1 - 5 years"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            1 - 5 years
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExperienceSelect("5 - 10 years")}
+            disabled={isSubmitting}
+            className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedExperience === "5 - 10 years"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            5 - 10 years
+          </button>
+          <button
+            type="button"
+            onClick={() => handleExperienceSelect("10+ years")}
+            disabled={isSubmitting}
+            className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedExperience === "10+ years"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            10+ years
+          </button>
+        </div>
+        {showValidation && !selectedExperience && (
+          <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your trading experience</p>
+        )}
+      </div>
+
+      {/* Settlement Preference */}
+      <div>
+        <label className="block text-gray-900 font-medium mb-2 text-sm sm:text-base">
+          Preference for running account settlement
+          <span className="text-red-500">*</span>
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => handleSettlementSelect("Quarterly")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedSettlement === "Quarterly"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            Quarterly
+          </button>
+          <button
+            type="button"
+            onClick={() => handleSettlementSelect("Monthly")}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
+              selectedSettlement === "Monthly"
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+          >
+            Monthly
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 
   // Always show the same UI - whether fresh or completed
   return (
-    <div className="w-full  -mt-28 sm:mt-8 mx-auto">
+    <div className="w-full -mt-28 sm:mt-8 mx-auto">
       <FormHeading
         title="Personal Details"
         description="Provide your personal information for account setup."
       />
 
-      <div className="space-y-6 mt-6">
-        {/* Marital Status */}
-        <div>
-          <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-            Marital Status<span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            {maritalStatusOptions.map((status) => (
-              <button
-                key={status}
-                type="button"
-                onClick={() => handleMaritalStatusSelect(status)}
-                disabled={isSubmitting}
-                className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
-                  ${
-                    maritalStatus === status
-                      ? "border-teal-800 bg-teal-50 text-teal-800"
-                      : "border-gray-300 text-gray-600 hover:border-gray-400"
-                  }
-                  ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
-                `}
-              >
-                {status}
-              </button>
-            ))}
-          </div>
-          {showValidation && !maritalStatus && (
-            <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your marital status</p>
-          )}
-        </div>
-
-        {/* Annual Income */}
-        <div>
-          <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-            Annual Income<span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("< 1 Lakh")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "< 1 Lakh"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-700 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              &lt; 1 Lakh
-            </button>
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("1 - 5 Lacs")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "1 - 5 Lacs"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              1 - 5 Lacs
-            </button>
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("5 - 10 Lacs")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "5 - 10 Lacs"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              5 - 10 Lacs
-            </button>
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("10 - 25 Lacs")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "10 - 25 Lacs"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              10 - 25 Lacs
-            </button>
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("25 - 1 Cr")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "25 - 1 Cr"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              25 - 1 Cr
-            </button>
-            <button
-              type="button"
-              onClick={() => handleIncomeSelect("> 1Cr")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedIncome === "> 1Cr"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              &gt; 1Cr
-            </button>
-          </div>
-          {showValidation && !selectedIncome && (
-            <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your annual income</p>
-          )}
-        </div>
-
-        {/* Trading Experience */}
-        <div>
-          <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-            Trading Experience<span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => handleExperienceSelect("No Experience")}
-              disabled={isSubmitting}
-              className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedExperience === "No Experience"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              No Experience
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExperienceSelect("< 1 year")}
-              disabled={isSubmitting}
-              className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedExperience === "< 1 year"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              &lt; 1 year
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExperienceSelect("1 - 5 years")}
-              disabled={isSubmitting}
-              className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedExperience === "1 - 5 years"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              1 - 5 years
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExperienceSelect("5 - 10 years")}
-              disabled={isSubmitting}
-              className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedExperience === "5 - 10 years"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              5 - 10 years
-            </button>
-            <button
-              type="button"
-              onClick={() => handleExperienceSelect("10+ years")}
-              disabled={isSubmitting}
-              className={`py-2 px-2 sm:px-4 border rounded-md transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedExperience === "10+ years"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              10+ years
-            </button>
-          </div>
-          {showValidation && !selectedExperience && (
-            <p className="text-red-500 text-xs sm:text-sm mt-1">Please select your trading experience</p>
-          )}
-        </div>
-
-        {/* Settlement Preference */}
-        <div>
-          <label className="block text-gray-900 font-medium mb-2 text-sm sm:text-base">
-            Preference for running account settlement
-            <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handleSettlementSelect("Quarterly")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedSettlement === "Quarterly"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Quarterly
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSettlementSelect("Monthly")}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center hover:border-gray-400 text-xs sm:text-sm ${
-                selectedSettlement === "Monthly"
-                  ? "border-teal-800 bg-teal-50 text-teal-800"
-                  : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
-            >
-              Monthly
-            </button>
-          </div>
+      {/* Page indicator */}
+      <div className="flex justify-center mt-4 mb-2">
+        <div className="flex space-x-2">
+          <div className={`w-3 h-3 rounded-full ${currentPage === 1 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
+          <div className={`w-3 h-3 rounded-full ${currentPage === 2 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
         </div>
       </div>
+
+      {/* Render current page */}
+      {currentPage === 1 ? renderPage1() : renderPage2()}
 
       {error && (
         <div className="mb-4 p-3 bg-red-50 rounded mt-6">
@@ -494,16 +542,30 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
         </div>
       )}
 
-      <Button
-        onClick={handleSubmit}
-        variant={"ghost"}
-        disabled={isButtonDisabled()}
-        className={`py-6 mt-8 w-full ${
-          isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
-        }`}
-      >
-        {getButtonText()}
-      </Button>
+      {/* Navigation buttons */}
+      <div className="flex justify-between mt-6 space-x-4">
+        {currentPage === 2 && (
+          <Button
+            onClick={handleBack}
+            variant="outline"
+            disabled={isSubmitting}
+            className="py-6 flex-1"
+          >
+            Back
+          </Button>
+        )}
+        
+        <Button
+          onClick={handleNext}
+          variant={"ghost"}
+          disabled={isButtonDisabled()}
+          className={`py-6 ${currentPage === 1 ? 'w-full' : 'flex-1'} ${
+            isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+        >
+          {getButtonText()}
+        </Button>
+      </div>
     </div>
   );
 };

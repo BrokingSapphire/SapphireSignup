@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 const DigilockerSuccessPage: React.FC = () => {
-  const [countdown, setCountdown] = useState(4);
+  const [countdown, setCountdown] = useState(3);
   const [isPopup, setIsPopup] = useState(false);
   const router = useRouter();
 

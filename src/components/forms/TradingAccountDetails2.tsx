@@ -23,12 +23,12 @@ const occupationOptions = [
   "Others",
 ];
 
-
 const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({ 
   onNext, 
   initialData, 
   isCompleted 
 }) => {
+  const [currentPage, setCurrentPage] = useState(1);
   const [occupation, setOccupation] = useState("");
   const [isPoliticallyExposed, setIsPoliticallyExposed] = useState<boolean>(false);
   const [showValidation, setShowValidation] = useState(false);
@@ -97,6 +97,14 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     setError(null);
   };
 
+  const validatePage1 = () => {
+    const isValid = occupation !== "";
+    setShowValidation(!isValid);
+    return isValid;
+  };
+
+
+
   const validateForm = () => {
     const isValid = occupation !== "";
     setShowValidation(!isValid);
@@ -127,6 +135,24 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
       "Others": "other"                     // Fixed: was "others"
     };
     return occupationMapping[occupation] || "other";
+  };
+
+  const handleNext = () => {
+    if (currentPage === 1) {
+      if (validatePage1()) {
+        setCurrentPage(2);
+      }
+    } else {
+      handleSubmit();
+    }
+  };
+
+  const handleBack = () => {
+    if (currentPage === 2) {
+      setCurrentPage(1);
+      setShowValidation(false);
+      setError(null);
+    }
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -198,17 +224,100 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     }
   };
 
-  const isFormValid = occupation !== "";
-
   const getButtonText = () => {
     if (isSubmitting) return "Continue";
+    if (currentPage === 1) return "Next";
     return "Continue";
   };
 
   const isButtonDisabled = () => {
     if (isSubmitting) return true;
-    return !isFormValid;
+    if (currentPage === 1) {
+      return occupation === "";
+    }
+    return false; // Page 2 has no required validation
   };
+
+  // Page 1 content - Occupation
+  const renderPage1 = () => (
+    <div className="mb-6">
+      <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
+        Occupation<span className="text-red-500">*</span>
+      </label>
+      {/* Using consistent grid layout like TradingPreferences with responsive design */}
+      <div className="grid grid-cols-2 gap-2">
+        {occupationOptions.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => handleOccupationSelect(option)}
+            disabled={isSubmitting}
+            className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
+              ${
+                occupation === option
+                  ? "border-teal-800 bg-teal-50 text-teal-800"
+                  : "border-gray-300 text-gray-600 hover:border-gray-400"
+              }
+              ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
+            `}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      {showValidation && !occupation && (
+        <p className="text-red-500 text-xs sm:text-sm mt-1">
+          Please select your occupation
+        </p>
+      )}
+    </div>
+  );
+
+  // Page 2 content - PEP question
+  const renderPage2 = () => (
+    <div className="mb-6">
+      <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
+        Are you a politically exposed person?
+        <span className="text-red-500">*</span>
+      </label>
+      {/* Using consistent grid layout with responsive design */}
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          type="button"
+          onClick={() => handlePoliticallyExposedChange(true)}
+          disabled={isSubmitting}
+          className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
+            ${
+              isPoliticallyExposed === true
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            }
+            ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
+          `}
+        >
+          Yes
+        </button>
+        <button
+          type="button"
+          onClick={() => handlePoliticallyExposedChange(false)}
+          disabled={isSubmitting}
+          className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
+            ${
+              isPoliticallyExposed === false
+                ? "border-teal-800 bg-teal-50 text-teal-800"
+                : "border-gray-300 text-gray-600 hover:border-gray-400"
+            }
+            ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
+          `}
+        >
+          No
+        </button>
+      </div>
+      {showValidation && isPoliticallyExposed === null && (
+        <p className="text-red-500 text-xs sm:text-sm mt-1">Please select an option</p>
+      )}
+    </div>
+  );
 
   // Always show the same UI - whether fresh or completed
   return (
@@ -218,81 +327,17 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
         description={"Provide additional information for your trading account."}
       />
 
-      <form ref={formRef} onSubmit={handleSubmit}>
-        <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-            Occupation<span className="text-red-500">*</span>
-          </label>
-          {/* Using consistent grid layout like TradingPreferences with responsive design */}
-          <div className="grid grid-cols-2 gap-2">
-            {occupationOptions.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => handleOccupationSelect(option)}
-                disabled={isSubmitting}
-                className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
-                  ${
-                    occupation === option
-                      ? "border-teal-800 bg-teal-50 text-teal-800"
-                      : "border-gray-300 text-gray-600 hover:border-gray-400"
-                  }
-                  ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
-                `}
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-          {showValidation && !occupation && (
-            <p className="text-red-500 text-xs sm:text-sm mt-1">
-              Please select your occupation
-            </p>
-          )}
+      {/* Page indicator */}
+      <div className="flex justify-center mt-4 mb-6">
+        <div className="flex space-x-2">
+          <div className={`w-3 h-3 rounded-full ${currentPage === 1 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
+          <div className={`w-3 h-3 rounded-full ${currentPage === 2 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
         </div>
+      </div>
 
-        <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2 text-sm sm:text-base">
-            Are you a politically exposed person?
-            <span className="text-red-500">*</span>
-          </label>
-          {/* Using consistent grid layout with responsive design */}
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => handlePoliticallyExposedChange(true)}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
-                ${
-                  isPoliticallyExposed === true
-                    ? "border-teal-800 bg-teal-50 text-teal-800"
-                    : "border-gray-300 text-gray-600 hover:border-gray-400"
-                }
-                ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
-              `}
-            >
-              Yes
-            </button>
-            <button
-              type="button"
-              onClick={() => handlePoliticallyExposedChange(false)}
-              disabled={isSubmitting}
-              className={`px-2 sm:px-4 py-2 rounded border transition-colors text-center text-xs sm:text-sm
-                ${
-                  isPoliticallyExposed === false
-                    ? "border-teal-800 bg-teal-50 text-teal-800"
-                    : "border-gray-300 text-gray-600 hover:border-gray-400"
-                }
-                ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}
-              `}
-            >
-              No
-            </button>
-          </div>
-          {showValidation && isPoliticallyExposed === null && (
-            <p className="text-red-500 text-xs sm:text-sm mt-1">Please select an option</p>
-          )}
-        </div>
+      <form ref={formRef} onSubmit={handleSubmit}>
+        {/* Render current page */}
+        {currentPage === 1 ? renderPage1() : renderPage2()}
 
         {error && (
           <div className="mb-4 p-3 bg-red-50 rounded">
@@ -300,16 +345,32 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
           </div>
         )}
 
-        <Button
-          variant={"ghost"}
-          type="submit"
-          disabled={isButtonDisabled()}
-          className={`w-full py-6 ${
-            isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
-          }`}
-        >
-          {getButtonText()}
-        </Button>
+        {/* Navigation buttons */}
+        <div className="flex justify-between space-x-4">
+          {currentPage === 2 && (
+            <Button
+              type="button"
+              onClick={handleBack}
+              variant="outline"
+              disabled={isSubmitting}
+              className="py-6 flex-1"
+            >
+              Back
+            </Button>
+          )}
+          
+          <Button
+            type="button"
+            onClick={handleNext}
+            variant={"ghost"}
+            disabled={isButtonDisabled()}
+            className={`py-6 ${currentPage === 1 ? 'w-full' : 'flex-1'} ${
+              isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            {getButtonText()}
+          </Button>
+        </div>
       </form>
     </div>
   );

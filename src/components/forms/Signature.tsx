@@ -494,7 +494,7 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       )}
 
       <div className="mb-6">
-        <div className="border-2 border-dashed h-[300px] border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center overflow-hidden">
+        <div className="border-2 border-dashed h-[240px] w-full mx-auto border-gray-300 rounded-lg p-4 flex flex-col items-center justify-center overflow-hidden">
           {shouldShowCompletedState ? (
             // Show completed state with option to sign again
             <div className="text-center space-y-4">
@@ -573,7 +573,7 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
       <div className="hidden lg:block text-center text-sm text-gray-600 mt-4">
         <p>
           Please sign clearly within the box above. Your signature will be used for document verification.
-          Session expires in 10 minutes. <strong>Press Enter to submit when ready.</strong>
+          Session expires in 10 minutes.
         </p>
       </div>
     </div>

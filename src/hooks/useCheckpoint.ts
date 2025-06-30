@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import axios, { AxiosError } from 'axios';
 import Cookies from 'js-cookie';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // Define checkpoint steps that exist in your backend API
 export enum CheckpointStep {
@@ -9,7 +9,7 @@ export enum CheckpointStep {
   AADHAAR = 'aadhaar',
   AADHAAR_MISMATCH_DETAILS = 'aadhaar_mismatch_details',
   INVESTMENT_SEGMENT = 'investment_segment',
-  INCOME_PROOF = 'income_proof', // Backend step that doesn't have its own UI
+  INCOME_PROOF = 'income_proof',
   USER_DETAIL = 'user_detail',
   PERSONAL_DETAIL = 'personal_detail',
   OTHER_DETAIL = 'other_detail',
@@ -17,6 +17,7 @@ export enum CheckpointStep {
   IPV = 'ipv',
   SIGNATURE = 'signature',
   ADD_NOMINEES = 'add_nominees',
+  PAN_VERIFICATION_RECORD = 'pan_verification_record',
   ESIGN = 'esign',
   PASSWORD_SETUP = 'password_setup',
   MPIN_SETUP = 'mpin_setup'
@@ -36,31 +37,12 @@ export enum AllSteps {
   IPV = 'ipv',
   SIGNATURE = 'signature',
   ADD_NOMINEES = 'add_nominees',
+  PAN_UPLOAD = 'pan_upload',
   LAST_STEP = 'last_step',
   SET_PASSWORD = 'set_password',
   MPIN = 'mpin',
   CONGRATULATIONS = 'congratulations'
 }
-
-// Component mapping to steps
-export const STEP_TO_COMPONENT_INDEX = {
-  [AllSteps.EMAIL]: 0,
-  [AllSteps.MOBILE]: 1,
-  [AllSteps.PAN]: 2,
-  [AllSteps.AADHAAR]: 3,
-  [AllSteps.INVESTMENT_SEGMENT]: 4,
-  [AllSteps.USER_DETAIL]: 5,
-  [AllSteps.PERSONAL_DETAIL]: 6,
-  [AllSteps.OTHER_DETAIL]: 7,
-  [AllSteps.BANK_VALIDATION]: 8,
-  [AllSteps.IPV]: 9,
-  [AllSteps.SIGNATURE]: 10,
-  [AllSteps.ADD_NOMINEES]: 11,
-  [AllSteps.LAST_STEP]: 12,
-  [AllSteps.SET_PASSWORD]: 13,
-  [AllSteps.MPIN]: 14,
-  [AllSteps.CONGRATULATIONS]: 15,
-} as const;
 
 // Define the order of steps to check (only API steps)
 const API_STEP_ORDER = [
@@ -76,6 +58,7 @@ const API_STEP_ORDER = [
   CheckpointStep.IPV,
   CheckpointStep.SIGNATURE,
   CheckpointStep.ADD_NOMINEES,
+  CheckpointStep.PAN_VERIFICATION_RECORD,
   CheckpointStep.ESIGN,
   CheckpointStep.PASSWORD_SETUP,
   CheckpointStep.MPIN_SETUP,
@@ -129,19 +112,20 @@ interface UseCheckpointReturn {
   isEmailCompleted: () => boolean;
   isMobileCompleted: () => boolean;
   getClientId: () => string | null;
-  // New functions for mismatch handling
   hasMismatchData: () => boolean;
   getMismatchData: () => CheckpointData['data'];
-  // Force next step function for income proof
   forceNextStep: (currentStepIndex: number) => number;
-  // Client-side initialization state
   isClientInitialized: boolean;
+  checkPanUploadRequirement: () => Promise<boolean>;
+  isPanUploadRequired: boolean | null;
+  setPanUploadRequired: (required: boolean | null) => void;
 }
 
 // Custom hook to manage checkpoint data
 export const useCheckpoint = (): UseCheckpointReturn => {
   const queryClient = useQueryClient();
   const [isClientInitialized, setIsClientInitialized] = useState(false);
+  const [isPanUploadRequired, setIsPanUploadRequired] = useState<boolean | null>(null);
   
   // Initialize client-side state
   useEffect(() => {
@@ -153,7 +137,7 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     return Cookies.get('authToken') || '';
   };
 
-  // UPDATED: Enhanced function to get email from localStorage with JSON parsing and URL recovery support
+  // Enhanced function to get email from localStorage
   const getEmailFromStorage = (): string => {
     if (!isClientInitialized) return '';
     
@@ -161,17 +145,14 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       const storedEmail = localStorage.getItem("email");
       if (!storedEmail) return "";
       
-      // Try to parse as JSON first (new format)
       try {
         const parsedEmail = JSON.parse(storedEmail);
         if (typeof parsedEmail === 'object' && parsedEmail.value) {
-          // Check if email has expired
           if (parsedEmail.expiry && Date.now() > parsedEmail.expiry) {
             localStorage.removeItem("email");
             return "";
           }
           
-          // Log if this was recovered from URL
           if (parsedEmail.recoveredFromUrl) {
             return "";
           }
@@ -179,7 +160,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           return parsedEmail.value;
         }
       } catch {
-        // If JSON parsing fails, treat as plain string (old format)
         return storedEmail;
       }
       
@@ -190,7 +170,7 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     }
   };
 
-  // UPDATED: Enhanced function to get phone from localStorage with JSON parsing and URL recovery support
+  // Enhanced function to get phone from localStorage
   const getPhoneFromStorage = (): string => {
     if (!isClientInitialized) return '';
     
@@ -198,17 +178,14 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       const storedPhone = localStorage.getItem("verifiedPhone");
       if (!storedPhone) return "";
       
-      // Try to parse as JSON first (new format)
       try {
         const parsedPhone = JSON.parse(storedPhone);
         if (typeof parsedPhone === 'object' && parsedPhone.value) {
-          // Check if phone has expired
           if (parsedPhone.expiry && Date.now() > parsedPhone.expiry) {
             localStorage.removeItem("verifiedPhone");
             return "";
           }
           
-          // Log if this was recovered from URL
           if (parsedPhone.recoveredFromUrl) {
             return "";
           }
@@ -216,7 +193,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           return parsedPhone.value;
         }
       } catch {
-        // If JSON parsing fails, treat as plain string (old format)
         return storedPhone;
       }
       
@@ -227,34 +203,78 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     }
   };
 
-  // Check if email is completed - Enhanced with JSON parsing
+  // Check if email is completed
   const isEmailCompleted = () => {
     if (!isClientInitialized) {
       return false;
     }
     
     const email = getEmailFromStorage();
-    const emailExists = !!email;
-
-    return emailExists;
+    return !!email;
   };
 
-  // Check if mobile is completed - Enhanced with auth token and phone verification
+  // Check if mobile is completed
   const isMobileCompleted = () => {
     if (!isClientInitialized) {
       return false;
     }
   
-    // Check both auth token and verified phone
     const tokenExists = !!getAuthToken();
     const phone = getPhoneFromStorage();
     const phoneExists = !!phone;
     
-    // Mobile is completed if both token and phone exist
-    const mobileCompleted = tokenExists && phoneExists;
-    
-    return mobileCompleted;
+    return tokenExists && phoneExists;
   };
+
+  // Enhanced function to check if PAN upload is required with retry logic
+  const checkPanUploadRequirement = useCallback(async (retryCount = 0): Promise<boolean> => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        console.warn("No auth token available for PAN requirement check");
+        return false;
+      }
+
+      const response = await axios.get(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/pan-verification-record`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          timeout: 10000,
+        }
+      );
+
+      // If we get 200 with URL, PAN is already uploaded - no upload required
+      if (response.status === 200 && response.data?.data?.url) {
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      const err = error as AxiosError;
+      
+      // If we get 204 (NO_CONTENT), PAN is not uploaded - upload required
+      if (err.response?.status === 204) {
+        return true;
+      }
+      
+      // Handle network errors with retry
+      if ((!err.response || err.code === 'ECONNABORTED') && retryCount < 2) {
+        console.warn(`Network error checking PAN requirement, retrying... (${retryCount + 1}/3)`);
+        await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+        return checkPanUploadRequirement(retryCount + 1);
+      }
+      
+      console.error("Error checking PAN requirement:", error);
+      return false;
+    }
+  }, [getAuthToken]);
+
+  // Function to set PAN upload requirement
+  const setPanUploadRequired = useCallback((required: boolean | null) => {
+    setIsPanUploadRequired(required);
+  }, []);
 
   // Function to fetch specific checkpoint step
   const fetchCheckpointStep = async (step: CheckpointStep): Promise<CheckpointData> => {
@@ -264,7 +284,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     try {
       let response;
       
-      // Use specific endpoints for special steps
       if (step === CheckpointStep.IPV) {
         try {
           response = await axios.get(
@@ -276,7 +295,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
             }
           );
           
-          // IPV endpoint returns 200 OK with data when completed
           if (response.status === 200 && response.data?.data?.url) {
             return {
               step,
@@ -284,7 +302,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
               completed: true,
             };
           } else {
-            // If no URL in response, IPV is not completed
             return {
               step,
               data: null,
@@ -293,7 +310,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           }
         } catch (error) {
           const err = error as AxiosError;
-          // Handle 204 No Content specifically (IPV not uploaded)
           if (err.response?.status === 204) {
             return {
               step,
@@ -301,7 +317,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
               completed: false,
             };
           }
-          // For other errors, re-throw to be handled by outer catch
           throw error;
         }
       } else if (step === CheckpointStep.SIGNATURE) {
@@ -315,7 +330,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
             }
           );
           
-          // Signature endpoint returns 200 OK with data when completed
           if (response.status === 200 && response.data?.data?.url) {
             return {
               step,
@@ -323,7 +337,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
               completed: true,
             };
           } else {
-            // If no URL in response, signature is not completed
             return {
               step,
               data: null,
@@ -332,7 +345,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           }
         } catch (error) {
           const err = error as AxiosError;
-          // Handle 204 No Content specifically (signature not uploaded)
           if (err.response?.status === 204) {
             return {
               step,
@@ -340,7 +352,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
               completed: false,
             };
           }
-          // For other errors, re-throw to be handled by outer catch
           throw error;
         }
       } else if (step === CheckpointStep.INCOME_PROOF) {
@@ -354,7 +365,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
             }
           );
           
-          // Income proof endpoint returns URL if the file is uploaded
           if (response.status === 200 && response.data?.data?.url) {
             return {
               step,
@@ -370,7 +380,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           }
         } catch (error) {
           const err = error as AxiosError;
-          // Handle 204 No Content specifically
           if (err.response?.status === 204) {
             return {
               step,
@@ -381,68 +390,99 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           console.error("Error fetching income proof:", error);
           throw error;
         }
+      } else if (step === CheckpointStep.PAN_VERIFICATION_RECORD) {
+        try {
+          response = await axios.get(
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/pan-verification-record`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          
+          if (response.status === 200 && response.data?.data?.url) {
+            return {
+              step,
+              data: response.data.data as StepDataWithUrl,
+              completed: true,
+            };
+          } else {
+            return {
+              step,
+              data: null,
+              completed: false,
+            };
+          }
+        } catch (error) {
+          const err = error as AxiosError;
+          if (err.response?.status === 204) {
+            return {
+              step,
+              data: null,
+              completed: false,
+            };
+          }
+          console.error("Error fetching PAN verification record:", error);
+          throw error;
+        }
       } else if (step === CheckpointStep.ESIGN) {
         try {
-        response = await axios.get(
+          response = await axios.get(
             `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/esign_complete`,
             {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             }
-        );
-        
-        // Check if we have the expected structure
-        if (response.status === 200) {
+          );
+          
+          if (response.status === 200) {
             const hasData = response.data?.data;
             const hasUrl = response.data?.data?.url;
             const urlValue = response.data?.data?.url;
             const isValidUrl = urlValue && urlValue.trim() !== "";
             
             if (hasData && typeof hasUrl !== 'undefined' && isValidUrl) {
-                return {
-                    step,
-                    data: { url: urlValue } as StepDataWithUrl,
-                    completed: true,
-                };
+              return {
+                step,
+                data: { url: urlValue } as StepDataWithUrl,
+                completed: true,
+              };
             } else if (hasData && typeof hasUrl !== 'undefined' && urlValue === "") {
-                return {
-                    step,
-                    data: { url: "" } as StepDataWithUrl,
-                    completed: true, // Still completed if record exists
-                };
+              return {
+                step,
+                data: { url: "" } as StepDataWithUrl,
+                completed: true,
+              };
             } else {
-                return {
-                    step,
-                    data: null,
-                    completed: false,
-                };
+              return {
+                step,
+                data: null,
+                completed: false,
+              };
             }
-        }
-    } catch (error) {
-        const err = error as AxiosError;
-        
-        // Handle specific error cases
-        if (err.response?.status === 404) {
+          }
+        } catch (error) {
+          const err = error as AxiosError;
+          
+          if (err.response?.status === 404) {
             return {
-                step,
-                data: null,
-                completed: false,
+              step,
+              data: null,
+              completed: false,
             };
-        } else if (err.response?.status === 401) {
+          } else if (err.response?.status === 401) {
             return {
-                step,
-                data: null,
-                completed: false,
+              step,
+              data: null,
+              completed: false,
             };
+          }
+          
+          throw error;
         }
-        
-        // For other errors, re-throw
-        throw error;
-    }
-}
-      else {
-        // Use the general checkpoint endpoint for all other steps
+      } else {
         response = await axios.get(
           `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/${step}`,
           {
@@ -461,7 +501,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     } catch (error) {
       const err = error as AxiosError<ApiErrorResponse>;
       if (err.response?.status === 404 || err.response?.status === 204) {
-        // Step not completed yet
         return {
           step,
           data: null,
@@ -469,7 +508,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
         };
       }
       
-      // Special handling for PASSWORD_SETUP step
       if (step === CheckpointStep.PASSWORD_SETUP && err.response?.status === 400) {
         const errorMessage = err.response?.data?.error?.message || err.response?.data?.message || '';
         if (errorMessage.includes('Password already set')) {
@@ -485,33 +523,286 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     }
   };
 
-  // Query only API-backed checkpoint steps - moved outside callback
-  const checkpointQueries = API_STEP_ORDER.map(step => 
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useQuery({
-      queryKey: ['checkpoint', step],
-      queryFn: () => fetchCheckpointStep(step),
-      enabled: !!getAuthToken() && isClientInitialized, // Only fetch if we have a token AND client is initialized
-      staleTime: 5 * 60 * 1000, // 5 minutes
-      gcTime: 20 * 60 * 1000, // 10 minutes
-      retry: (failureCount, error) => {
-        const err = error as AxiosError;
-        // Don't retry on 404 or 204 (step not completed)
-        if (err?.response?.status === 404 || err?.response?.status === 204) {
-          return false;
-        }
-        return failureCount < 3;
-      },
-    })
-  );
+  // Query checkpoint steps - each useQuery must be called at the top level
+  const panQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.PAN],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.PAN),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const aadhaarQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.AADHAAR],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.AADHAAR),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const aadhaarMismatchQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.AADHAAR_MISMATCH_DETAILS],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.AADHAAR_MISMATCH_DETAILS),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const investmentSegmentQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.INVESTMENT_SEGMENT],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.INVESTMENT_SEGMENT),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const incomeProofQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.INCOME_PROOF],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.INCOME_PROOF),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const userDetailQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.USER_DETAIL],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.USER_DETAIL),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const personalDetailQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.PERSONAL_DETAIL],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.PERSONAL_DETAIL),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const otherDetailQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.OTHER_DETAIL],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.OTHER_DETAIL),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const bankValidationQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.BANK_VALIDATION],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.BANK_VALIDATION),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const ipvQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.IPV],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.IPV),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const signatureQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.SIGNATURE],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.SIGNATURE),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const addNomineesQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.ADD_NOMINEES],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.ADD_NOMINEES),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const panVerificationQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.PAN_VERIFICATION_RECORD],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.PAN_VERIFICATION_RECORD),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const esignQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.ESIGN],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.ESIGN),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const passwordSetupQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.PASSWORD_SETUP],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.PASSWORD_SETUP),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  const mpinSetupQuery = useQuery({
+    queryKey: ['checkpoint', CheckpointStep.MPIN_SETUP],
+    queryFn: () => fetchCheckpointStep(CheckpointStep.MPIN_SETUP),
+    enabled: !!getAuthToken() && isClientInitialized,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    retry: (failureCount, error) => {
+      const err = error as AxiosError;
+      if (err?.response?.status === 404 || err?.response?.status === 204) {
+        return false;
+      }
+      return failureCount < 3;
+    },
+  });
+
+  // Collect all queries for processing
+  const checkpointQueries = [
+    panQuery,
+    aadhaarQuery,
+    aadhaarMismatchQuery,
+    investmentSegmentQuery,
+    incomeProofQuery,
+    userDetailQuery,
+    personalDetailQuery,
+    otherDetailQuery,
+    bankValidationQuery,
+    ipvQuery,
+    signatureQuery,
+    addNomineesQuery,
+    panVerificationQuery,
+    esignQuery,
+    passwordSetupQuery,
+    mpinSetupQuery,
+  ];
 
   // Process data into a more usable format
-  const checkpointData: Record<CheckpointStep, CheckpointData | null> = 
-    API_STEP_ORDER.reduce((acc, step, index) => {
-      const query = checkpointQueries[index];
-      acc[step] = query.data || null;
-      return acc;
-    }, {} as Record<CheckpointStep, CheckpointData | null>);
+  const checkpointData: Record<CheckpointStep, CheckpointData | null> = {
+    [CheckpointStep.PAN]: panQuery.data || null,
+    [CheckpointStep.AADHAAR]: aadhaarQuery.data || null,
+    [CheckpointStep.AADHAAR_MISMATCH_DETAILS]: aadhaarMismatchQuery.data || null,
+    [CheckpointStep.INVESTMENT_SEGMENT]: investmentSegmentQuery.data || null,
+    [CheckpointStep.INCOME_PROOF]: incomeProofQuery.data || null,
+    [CheckpointStep.USER_DETAIL]: userDetailQuery.data || null,
+    [CheckpointStep.PERSONAL_DETAIL]: personalDetailQuery.data || null,
+    [CheckpointStep.OTHER_DETAIL]: otherDetailQuery.data || null,
+    [CheckpointStep.BANK_VALIDATION]: bankValidationQuery.data || null,
+    [CheckpointStep.IPV]: ipvQuery.data || null,
+    [CheckpointStep.SIGNATURE]: signatureQuery.data || null,
+    [CheckpointStep.ADD_NOMINEES]: addNomineesQuery.data || null,
+    [CheckpointStep.PAN_VERIFICATION_RECORD]: panVerificationQuery.data || null,
+    [CheckpointStep.ESIGN]: esignQuery.data || null,
+    [CheckpointStep.PASSWORD_SETUP]: passwordSetupQuery.data || null,
+    [CheckpointStep.MPIN_SETUP]: mpinSetupQuery.data || null,
+  };
 
   // Get client ID from completed checkpoints
   const getClientId = (): string | null => {
@@ -555,7 +846,6 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       return false;
     }
 
-    // Specific validation rules for different steps
     switch (step) {
       case CheckpointStep.INVESTMENT_SEGMENT: {
         const data = stepData.data as InvestmentSegmentData;
@@ -564,36 +854,35 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       
       case CheckpointStep.INCOME_PROOF: {
         const data = stepData.data as StepDataWithUrl;
-        return !!data.url; // Check for URL presence
+        return !!data.url;
       }
       
       case CheckpointStep.IPV: {
         const data = stepData.data as StepDataWithUrl;
-        const isValid = !!data.url;
-        return isValid;
+        return !!data.url;
       }
       
       case CheckpointStep.SIGNATURE: {
         const data = stepData.data as StepDataWithUrl;
-        const isValid = !!data.url;
-        return isValid;
+        return !!data.url;
+      }
+      
+      case CheckpointStep.PAN_VERIFICATION_RECORD: {
+        const data = stepData.data as StepDataWithUrl;
+        return !!data.url;
       }
       
       case CheckpointStep.ESIGN: {
-        // For eSign, check if we have step data with url field (even empty string means completed)
         const hasUrlField = stepData.data && typeof stepData.data === 'object' && 'url' in stepData.data;
         return hasUrlField;
       }
       
       case CheckpointStep.PASSWORD_SETUP:
-        // For password setup, check if we have data (including "password already set" case)
         return !!stepData.data;
       
       case CheckpointStep.MPIN_SETUP:
-        // For MPIN setup, check if we have data
         return !!stepData.data;
       
-      // For other steps, just check if there's any data
       default:
         return true;
     }
@@ -605,38 +894,50 @@ export const useCheckpoint = (): UseCheckpointReturn => {
   };
   
   // Special function to force moving to the next step
-  // This is used when we need to bypass step validation
   const forceNextStep = (currentStepIndex: number): number => {
-    // If we're on the investment segment step
+    const STEP_TO_COMPONENT_INDEX = {
+      [AllSteps.EMAIL]: 0,
+      [AllSteps.MOBILE]: 1,
+      [AllSteps.PAN]: 2,
+      [AllSteps.AADHAAR]: 3,
+      [AllSteps.INVESTMENT_SEGMENT]: 4,
+      [AllSteps.USER_DETAIL]: 5,
+      [AllSteps.PERSONAL_DETAIL]: 6,
+      [AllSteps.OTHER_DETAIL]: 7,
+      [AllSteps.BANK_VALIDATION]: 8,
+      [AllSteps.IPV]: 9,
+      [AllSteps.SIGNATURE]: 10,
+      [AllSteps.ADD_NOMINEES]: 11,
+      [AllSteps.PAN_UPLOAD]: 12,
+      [AllSteps.LAST_STEP]: 13,
+      [AllSteps.SET_PASSWORD]: 14,
+      [AllSteps.MPIN]: 15,
+      [AllSteps.CONGRATULATIONS]: 16,
+    } as const;
+
     if (currentStepIndex === STEP_TO_COMPONENT_INDEX[AllSteps.INVESTMENT_SEGMENT]) {
-      // Force move to User Detail step
       return STEP_TO_COMPONENT_INDEX[AllSteps.USER_DETAIL];
     }
     return currentStepIndex;
   };
 
-  // NEW: Enhanced investment segment completion check
+  // Enhanced investment segment completion check
   const isInvestmentSegmentStepComplete = (): boolean => {
-    // First check if investment segment itself is completed
     const investmentCompleted = isStepCompleted(CheckpointStep.INVESTMENT_SEGMENT);
     if (!investmentCompleted) {
       return false;
     }
 
-    // Get investment segment data to check if income proof is required
     const investmentData = checkpointData[CheckpointStep.INVESTMENT_SEGMENT];
     const data = investmentData?.data as InvestmentSegmentData;
     const requiresIncomeProof = data?.requiresIncomeProof === true;
     
-    // Also check if user selected risk segments that would require income proof
     const selectedSegments = data?.segments || [];
     const hasRiskSegments = selectedSegments.some((segment: string) => 
       segment === "F&O" || segment === "Currency" || segment === "Commodity"
     );
     
-    // If income proof is required (either by backend flag or risk segments)
     if (requiresIncomeProof || hasRiskSegments) {
-      // Check if income proof is also completed
       const incomeProofCompleted = isStepCompleted(CheckpointStep.INCOME_PROOF);
       return incomeProofCompleted;
     }
@@ -644,8 +945,28 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     return true;
   };
 
-  // Determine current step considering all steps
+  // Determine current step considering all steps including PAN upload
   const getCurrentStep = (): number => {
+    const STEP_TO_COMPONENT_INDEX = {
+      [AllSteps.EMAIL]: 0,
+      [AllSteps.MOBILE]: 1,
+      [AllSteps.PAN]: 2,
+      [AllSteps.AADHAAR]: 3,
+      [AllSteps.INVESTMENT_SEGMENT]: 4,
+      [AllSteps.USER_DETAIL]: 5,
+      [AllSteps.PERSONAL_DETAIL]: 6,
+      [AllSteps.OTHER_DETAIL]: 7,
+      [AllSteps.BANK_VALIDATION]: 8,
+      [AllSteps.IPV]: 9,
+      [AllSteps.SIGNATURE]: 10,
+      [AllSteps.ADD_NOMINEES]: 11,
+      [AllSteps.PAN_UPLOAD]: 12,
+      [AllSteps.LAST_STEP]: isPanUploadRequired === true ? 13 : 12,
+      [AllSteps.SET_PASSWORD]: isPanUploadRequired === true ? 14 : 13,
+      [AllSteps.MPIN]: isPanUploadRequired === true ? 15 : 14,
+      [AllSteps.CONGRATULATIONS]: isPanUploadRequired === true ? 16 : 15,
+    } as const;
+
     // Don't calculate step if client is not initialized
     if (!isClientInitialized) {
       return STEP_TO_COMPONENT_INDEX[AllSteps.EMAIL];
@@ -666,10 +987,9 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       return STEP_TO_COMPONENT_INDEX[AllSteps.PAN];
     }
 
-    // Check for mismatch data first (this avoids expensive DigiLocker calls)
+    // Check for mismatch data first
     const mismatchData = checkpointData[CheckpointStep.AADHAAR_MISMATCH_DETAILS];
     if (mismatchData?.completed) {
-      // There's mismatch data, user needs to fill mismatch form
       return STEP_TO_COMPONENT_INDEX[AllSteps.AADHAAR];
     }
 
@@ -678,7 +998,7 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       return STEP_TO_COMPONENT_INDEX[AllSteps.AADHAAR];
     }
 
-    // Check Investment Segment with enhanced validation (includes income proof check)
+    // Check Investment Segment with enhanced validation
     if (!isInvestmentSegmentStepComplete()) {
       return STEP_TO_COMPONENT_INDEX[AllSteps.INVESTMENT_SEGMENT];
     }
@@ -703,12 +1023,12 @@ export const useCheckpoint = (): UseCheckpointReturn => {
       return STEP_TO_COMPONENT_INDEX[AllSteps.BANK_VALIDATION];
     }
 
-    // Check IPV with enhanced validation
+    // Check IPV
     if (!isStepCompleted(CheckpointStep.IPV)) {
       return STEP_TO_COMPONENT_INDEX[AllSteps.IPV];
     }
 
-    // Check Signature with enhanced validation
+    // Check Signature
     if (!isStepCompleted(CheckpointStep.SIGNATURE)) {
       return STEP_TO_COMPONENT_INDEX[AllSteps.SIGNATURE];
     }
@@ -716,6 +1036,11 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     // Check Add Nominees
     if (!isStepCompleted(CheckpointStep.ADD_NOMINEES)) {
       return STEP_TO_COMPONENT_INDEX[AllSteps.ADD_NOMINEES];
+    }
+
+    // Check PAN verification record (conditional step)
+    if (isPanUploadRequired === true && !isStepCompleted(CheckpointStep.PAN_VERIFICATION_RECORD)) {
+      return STEP_TO_COMPONENT_INDEX[AllSteps.PAN_UPLOAD];
     }
 
     // Check eSign
@@ -760,7 +1085,10 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     hasMismatchData,
     getMismatchData,
     forceNextStep,
-    isClientInitialized, // Export this for external use
+    isClientInitialized,
+    checkPanUploadRequirement,
+    isPanUploadRequired,
+    setPanUploadRequired,
   };
 };
 

@@ -7,8 +7,9 @@ export function middleware(request: NextRequest) {
 
   // Define the routes that require authentication (protected routes)
   const protectedRoutes = [
-    '/esign-success',
-    '/digilocker-success'
+    '/testa',
+    // '/esign-success',
+    // '/digilocker-success'
   ]
 
   // Check if the current route is in the protected routes list

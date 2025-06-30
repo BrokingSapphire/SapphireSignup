@@ -152,8 +152,40 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     return null;
   };
 
+  // Enhanced name comparison function
+  const compareNames = (name1: string, name2: string): boolean => {
+    // Remove common prefixes/suffixes and normalize
+    const normalize = (name: string) => {
+      return name
+        .toLowerCase()
+        .replace(/\b(mr|mrs|ms|dr|prof|shri|smt|kumari)\b\.?/g, '')
+        .replace(/[.,\-_]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+    
+    const normalized1 = normalize(name1);
+    const normalized2 = normalize(name2);
+    
+    // Exact match
+    if (normalized1 === normalized2) return true;
+    
+    // Check if one name contains the other (for cases like "John Doe" vs "John")
+    const words1 = normalized1.split(' ').filter(w => w.length > 2);
+    const words2 = normalized2.split(' ').filter(w => w.length > 2);
+    
+    // Check if at least 2 significant words match or if it's a subset
+    const matchingWords = words1.filter(word => 
+      words2.some(w => w.includes(word) || word.includes(w))
+    );
+    
+    const isMatch = matchingWords.length >= Math.min(2, Math.min(words1.length, words2.length));
+    
+    return isMatch;
+  };
+
   // Updated validate bank details function that works for both UPI and manual entry
-  const validateBankDetails = async (bankAccountHolderName?: string): Promise<boolean> => {
+  const validateBankDetails = async (bankAccountHolderName?: string, validationType?: 'manual' | 'upi'): Promise<boolean> => {
     setIsValidating(true);
     
     try {
@@ -165,8 +197,9 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
           bankHolderName = bankData.full_name;
         } else {
           // Try to get from API as fallback
-          const response = await axios.get(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/bank_validation`,
+          const response = await axios.post(
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+            { step: "bank_validation" },
             {
               headers: {
                 Authorization: `Bearer ${Cookies.get('authToken')}`
@@ -215,8 +248,31 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return false;
       }
       
-      // Names match, proceed
-      return true;
+      // Names match, now call the completion API
+      try {
+        const completionStep = validationType === 'upi' ? 'complete_upi_validation' : 'complete_bank_validation';
+        
+        await axios.post(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+          { step: completionStep },
+          {
+            headers: {
+              Authorization: `Bearer ${Cookies.get('authToken')}`
+            }
+          }
+        );
+        
+        toast.success("Bank account verified successfully!");
+        return true;
+        
+      } catch (completionError) {
+        console.error("Error calling completion API:", completionError);
+        if (!hasShownValidationToast) {
+          toast.error("Bank verification completed but failed to save. Please try again.");
+          hasShownValidationToast = true;
+        }
+        return false;
+      }
       
     } catch (error: unknown) {
       console.error("Error validating bank details:", error);
@@ -251,38 +307,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     }
   };
 
-  // Enhanced name comparison function
-  const compareNames = (name1: string, name2: string): boolean => {
-    // Remove common prefixes/suffixes and normalize
-    const normalize = (name: string) => {
-      return name
-        .toLowerCase()
-        .replace(/\b(mr|mrs|ms|dr|prof|shri|smt|kumari)\b\.?/g, '')
-        .replace(/[.,\-_]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-    
-    const normalized1 = normalize(name1);
-    const normalized2 = normalize(name2);
-    
-    // Exact match
-    if (normalized1 === normalized2) return true;
-    
-    // Check if one name contains the other (for cases like "John Doe" vs "John")
-    const words1 = normalized1.split(' ').filter(w => w.length > 2);
-    const words2 = normalized2.split(' ').filter(w => w.length > 2);
-    
-    // Check if at least 2 significant words match or if it's a subset
-    const matchingWords = words1.filter(word => 
-      words2.some(w => w.includes(word) || word.includes(w))
-    );
-    
-    const isMatch = matchingWords.length >= Math.min(2, Math.min(words1.length, words2.length));
-    
-    return isMatch;
-  };
-
   // Enhanced onNext handler with validation
   const handleNext = async () => {
     // If validation is in progress, don't proceed
@@ -292,7 +316,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
 
     // If already completed and no changes, proceed directly
     if (isCompleted && bankData) {
-      const isValid = await validateBankDetails();
+      const isValid = await validateBankDetails(bankData.full_name, 'manual');
       if (isValid) {
         onNext();
       }
@@ -341,14 +365,16 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         full_name: bankAccountHolderName || ''
       });
       
-      // Validate names
-      const isValid = await validateBankDetails(bankAccountHolderName);
+      // Validate names and call completion API
+      const isValid = await validateBankDetails(bankAccountHolderName, 'upi');
       
       if (isValid) {
-        // Names match, proceed to next step
-        onNext();
+        // Names match and completion API called successfully, proceed to next step
+        setTimeout(() => {
+          onNext();
+        }, 1500);
       } else {
-        // Names don't match, the validateBankDetails function will show the error toast
+        // Names don't match or completion API failed, the validateBankDetails function will show the error toast
         // and reset the linking method
       }
     } else {
@@ -356,7 +382,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
       onNext();
     }
   };
-
 
   // Always show the same UI - whether fresh or completed
   const renderLinkingOption = () => {
@@ -367,7 +392,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
           onBack={() => setLinkingMethod(null)} 
           initialData={initialData}
           isCompleted={isCompleted}
-          validateBankDetails={validateBankDetails}
+          validateBankDetails={(bankHolderName) => validateBankDetails(bankHolderName, 'manual')}
         />
       );
     } else if (linkingMethod === "upi") {
@@ -375,7 +400,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         <UpiLinking 
           onNext={handleNext}
           onBack={() => setLinkingMethod(null)}
-          validateBankDetails={validateBankDetails}
+          validateBankDetails={(bankHolderName) => validateBankDetails(bankHolderName, 'upi')}
           onUpiSuccess={handleUpiSuccess}
         />
       );
@@ -442,11 +467,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
               >
                 Link Different Account
               </button>
-            </div>
-            
-            {/* Add Enter key instruction */}
-            <div className="mt-3 text-center text-sm text-gray-600">
-              <p><strong>Press Enter to continue</strong></p>
             </div>
           </div>
         )}
