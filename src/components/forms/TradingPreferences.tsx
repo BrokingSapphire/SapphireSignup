@@ -134,11 +134,7 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     return isValid;
   };
 
-  const validatePage2 = () => {
-    const isValid = selectedExperience && selectedSettlement;
-    setShowValidation(!isValid);
-    return isValid;
-  };
+
 
   const validateForm = () => {
     const isValid = maritalStatus && selectedIncome && selectedExperience && selectedSettlement;

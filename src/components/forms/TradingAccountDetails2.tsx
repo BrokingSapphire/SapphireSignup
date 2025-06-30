@@ -103,9 +103,7 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     return isValid;
   };
 
-  const validatePage2 = () => {
-    return true; // Page 2 only has PEP question which always has a default value
-  };
+
 
   const validateForm = () => {
     const isValid = occupation !== "";
