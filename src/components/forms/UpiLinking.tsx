@@ -248,7 +248,9 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         const normalize = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
         if (normalize(accountHolderName) !== normalize(storedName)) {
           setIsValidatingName(false);
-          setError("Account holder name doesn't match your Government ID. Please use the correct bank account.");
+          setError(null);
+          toast.success("The Account Holder name Doesn't match with the name in the Gov id, Please try again");
+          onBack(); // Show manual verification component
           return;
         }
         // If onUpiSuccess callback is provided, use it for completion
