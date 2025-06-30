@@ -827,6 +827,8 @@ export const useCheckpoint = (): UseCheckpointReturn => {
     [CheckpointStep.ESIGN]: esignQuery.data || null,
     [CheckpointStep.PASSWORD_SETUP]: passwordSetupQuery.data || null,
     [CheckpointStep.MPIN_SETUP]: mpinSetupQuery.data || null,
+    [CheckpointStep.COMPLETE_BANK_VALIDATION]: null,
+    [CheckpointStep.COMPLETE_UPI_VALIDATION]: null,
   };
 
   // Get client ID from completed checkpoints
