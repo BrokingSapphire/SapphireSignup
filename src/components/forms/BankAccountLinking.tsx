@@ -520,11 +520,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
                 Link Different Account
               </button>
             </div>
-            
-            {/* Add Enter key instruction */}
-            <div className="mt-3 text-center text-sm text-gray-600">
-              <p><strong>Press Enter to continue</strong></p>
-            </div>
+
           </div>
         )}
 

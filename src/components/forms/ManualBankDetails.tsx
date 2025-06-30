@@ -337,9 +337,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         if (isValid) {
           setTimeout(() => {
             onNext();
-          }, 1500);
+          }, 1000);
         }
-      }, 2000);
+      }, 1500);
       
     } catch (err: unknown) {
       type AxiosErrorResponse = {
