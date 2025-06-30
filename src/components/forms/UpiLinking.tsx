@@ -223,48 +223,69 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       if (response.status === 201) {
         stopPolling();
         setIsValidatingName(true);
-        
         toast.success("UPI payment completed! Validating account holder name...");
-        
         // Get bank details from response - the account holder name should be in the response
         const bankDetails = response.data?.data?.bank || response.data?.data;
         const accountHolderName = bankDetails?.account_holder_name || bankDetails?.full_name;
-        
-        // If onUpiSuccess callback is provided, use it for validation
+        // Name validation against localStorage
+        let storedName = null;
+        if (typeof window !== 'undefined') {
+          storedName = localStorage.getItem('full_name');
+          try {
+            if (storedName) {
+              storedName = JSON.parse(storedName);
+              if (typeof storedName === 'object' && storedName.full_name) {
+                storedName = storedName.full_name;
+              }
+            }
+          } catch { /* ignore */ }
+        }
+        if (!storedName) {
+          setIsValidatingName(false);
+          setError('Could not find your official name for validation. Please restart.');
+          return;
+        }
+        const normalize = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
+        if (normalize(accountHolderName) !== normalize(storedName)) {
+          setIsValidatingName(false);
+          setError("Account holder name doesn't match your Government ID. Please use the correct bank account.");
+          return;
+        }
+        // If onUpiSuccess callback is provided, use it for completion
         if (onUpiSuccess && bankDetails) {
           try {
-            // Add the account holder name to the bank details for validation
             const upiDataWithName = {
               ...bankDetails,
               account_holder_name: accountHolderName,
               full_name: accountHolderName
             };
-            
             await onUpiSuccess(upiDataWithName);
             setIsValidatingName(false);
           } catch (error) {
             console.error("UPI success validation failed:", error);
             setIsValidatingName(false);
-            // Error handling is done in the onUpiSuccess callback
           }
         } else {
-          // Fallback to old validation method
-          setTimeout(async () => {
-            try {
-              const isValid = await validateBankDetails(accountHolderName);
-              setIsValidatingName(false);
-              
-              if (isValid) {
-                setTimeout(() => {
-                  onNext();
-                }, 1500);
+          // Fallback: call complete_upi_validation
+          try {
+            await axios.post(
+              `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+              { step: 'complete_upi_validation' },
+              {
+                headers: {
+                  Authorization: `Bearer ${Cookies.get('authToken')}`,
+                  'Content-Type': 'application/json',
+                },
               }
-            } catch (error) {
-              console.error("Bank validation error:", error);
-              setIsValidatingName(false);
-              setError("Bank validation failed. Please try again.");
-            }
-          }, 2000);
+            );
+            setIsValidatingName(false);
+            setTimeout(() => {
+              onNext();
+            }, 1500);
+          } catch (error) {
+            setIsValidatingName(false);
+            setError('UPI validation completed but failed to save. Please try again.');
+          }
         }
       }
     } catch (err: unknown) {

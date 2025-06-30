@@ -20,7 +20,9 @@ export enum CheckpointStep {
   PAN_VERIFICATION_RECORD = 'pan_verification_record',
   ESIGN = 'esign',
   PASSWORD_SETUP = 'password_setup',
-  MPIN_SETUP = 'mpin_setup'
+  MPIN_SETUP = 'mpin_setup',
+  COMPLETE_BANK_VALIDATION = 'complete_bank_validation',
+  COMPLETE_UPI_VALIDATION = 'complete_upi_validation'
 }
 
 // All steps in your flow (including non-API steps)
@@ -481,6 +483,29 @@ export const useCheckpoint = (): UseCheckpointReturn => {
           }
           
           throw error;
+        }
+      } else if (step === CheckpointStep.BANK_VALIDATION) {
+        response = await axios.get(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            params: { step: 'bank_validation' },
+          }
+        );
+        if (response.status === 200 && response.data?.data?.bank) {
+          return {
+            step,
+            data: response.data.data.bank,
+            completed: true,
+          };
+        } else {
+          return {
+            step,
+            data: null,
+            completed: false,
+          };
         }
       } else {
         response = await axios.get(

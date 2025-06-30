@@ -390,18 +390,32 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   // Step 2: Name Validation
   const performNameValidation = async (accountHolderName: string): Promise<boolean> => {
     setVerificationStage('name_validation');
-    
     try {
       toast.info("Validating account holder name with government ID...");
-      
-      const isValid = await validateBankDetails(accountHolderName);
-      
-      if (!isValid) {
-        throw new Error("Account holder name validation failed");
+      // Get full_name from localStorage
+      let storedName = null;
+      if (typeof window !== 'undefined') {
+        storedName = localStorage.getItem('full_name');
+        try {
+          if (storedName) {
+            storedName = JSON.parse(storedName);
+            if (typeof storedName === 'object' && storedName.full_name) {
+              storedName = storedName.full_name;
+            }
+          }
+        } catch { /* ignore */ }
       }
-      
+      if (!storedName) {
+        toast.error('Could not find your official name for validation. Please restart.');
+        return false;
+      }
+      // Normalize and compare
+      const normalize = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
+      if (normalize(accountHolderName) !== normalize(storedName)) {
+        toast.error("Account holder name doesn't match your Government ID. Please use the correct bank account.");
+        return false;
+      }
       return true;
-      
     } catch (error) {
       console.error("Name Validation Error:", error);
       throw error;
@@ -445,63 +459,51 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
-
-    // If no changes and already completed, just proceed
     if (!hasChanges() && isCompleted) {
       onNext();
       return;
     }
-
     if (!validateForm()) {
       return;
     }
-
-    // Don't allow submission if IFSC is loading or has error
     if (isLoadingBankInfo) {
       setError("Please wait for IFSC verification to complete");
       return;
     }
-
     if (ifscError || !bankInfo.bankName) {
       setError("Please enter a valid IFSC code");
       return;
     }
-
     setIsSubmitting(true);
     setError(null);
-
     try {
       // Step 1: Perform Penny Drop
       const accountHolderName = await performPennyDrop();
-      
       if (!accountHolderName) {
         throw new Error("Failed to get account holder name");
       }
-
       // Step 2: Validate Name
-      await performNameValidation(accountHolderName);
-
+      const isValid = await performNameValidation(accountHolderName);
+      if (!isValid) {
+        setIsSubmitting(false);
+        setVerificationStage('form');
+        setBankAccountHolderName("");
+        return;
+      }
       // Step 3: Complete Bank Validation
       await completeBankValidation();
-
-      // Step 4: Proceed to next step
       setTimeout(() => {
         onNext();
       }, 1500);
-      
     } catch (err: unknown) {
       console.error("Bank Verification Process Error:", err);
-      
       if (err instanceof Error) {
         setError(err.message);
       } else {
         setError("Bank verification failed. Please try again.");
       }
-      
-      // Reset verification stage on error
       setVerificationStage('form');
       setBankAccountHolderName("");
-      
     } finally {
       setIsSubmitting(false);
     }
@@ -746,15 +748,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           </p>
           
           {/* Detailed verification process explanation */}
-          <div className="mt-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-            <h4 className="text-sm font-medium text-gray-800 mb-2">Verification Process:</h4>
-            <ol className="text-xs text-gray-600 text-left space-y-1">
-              <li>1. <strong>Penny Drop:</strong> ₹1 is deposited to verify account details</li>
-              <li>2. <strong>Name Validation:</strong> Account holder name is matched with your ID</li>
-              <li>3. <strong>Completion:</strong> Bank account is linked to your profile</li>
-              <li>4. <strong>Refund:</strong> ₹1 is refunded within 24 hours</li>
-            </ol>
-          </div>
+         
         </div>
 
         {/* Back button */}

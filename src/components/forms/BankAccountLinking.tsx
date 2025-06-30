@@ -313,16 +313,11 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     if (isValidating) {
       return;
     }
-
     // If already completed and no changes, proceed directly
     if (isCompleted && bankData) {
-      const isValid = await validateBankDetails(bankData.full_name, 'manual');
-      if (isValid) {
-        onNext();
-      }
+      onNext(); // No need to re-validate, already handled in child
       return;
     }
-
     // For new submissions, validation will be handled in the child components
     onNext();
   };
