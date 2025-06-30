@@ -284,7 +284,7 @@ const LeftPanel = ({ currentStep }: { currentStep: number }) => {
                     {/* Vertical line - conditionally change color based on completion status */}
                     {index < steps.length - 1 && (
                       <div
-                        className={`absolute left-3 top-6 w-0.5 h-10 ${
+                        className={`absolute left-2.5 top-3 w-0.5 h-10 ${
                           step.completed ? "bg-green-500" : "bg-gray-200/50"
                         } transition-colors duration-500 ease-in-out`}
                       ></div>
