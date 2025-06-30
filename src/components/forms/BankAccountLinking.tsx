@@ -90,31 +90,28 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     }
   }, [initialData, isCompleted]);
 
-  // Get stored full name from localStorage (try multiple possible keys)
+  // Get stored full name from localStorage (only full_name key)
   const getStoredFullName = (): string | null => {
     if (typeof window === 'undefined') return null;
     
-    // Try common localStorage keys for full name
-    const possibleKeys = ['full_name', 'fullName', 'name', 'user_name', 'userName'];
-    
-    for (const key of possibleKeys) {
-      const value = localStorage.getItem(key);
+    try {
+      const value = localStorage.getItem('full_name');
       if (value) {
         try {
           // Try parsing as JSON first (in case it's stored as an object)
           const parsed = JSON.parse(value);
-          if (typeof parsed === 'string') {
-            return parsed;
-          } else if (typeof parsed === 'object' && parsed.name) {
-            return parsed.name;
-          } else if (typeof parsed === 'object' && parsed.full_name) {
-            return parsed.full_name;
+          if (typeof parsed === 'string' && parsed.trim()) {
+            return parsed.trim();
+          } else if (typeof parsed === 'object' && parsed && parsed.full_name) {
+            return parsed.full_name.trim();
           }
         } catch {
           // If JSON parsing fails, treat as string
-          return value;
+          return value.trim();
         }
       }
+    } catch (error) {
+      console.warn("Error reading localStorage key 'full_name':", error);
     }
     
     return null;
@@ -152,6 +149,85 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     return null;
   };
 
+  // Enhanced name comparison function
+  const compareNames = (bankName: string, govIdName: string): boolean => {
+    console.log("Original names:", { bank: bankName, govId: govIdName });
+    
+    // Normalize both names
+    const normalize = (name: string) => {
+      return name
+        .toLowerCase()
+        .trim()
+        // Remove common prefixes/suffixes
+        .replace(/\b(mr|mrs|ms|dr|prof|shri|smt|kumari|kumar|devi|singh)\b\.?/gi, '')
+        // Remove special characters and extra spaces
+        .replace(/[.,\-_]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+    
+    const normalizedBank = normalize(bankName);
+    const normalizedGovId = normalize(govIdName);
+    
+    console.log("Normalized names:", { bank: normalizedBank, govId: normalizedGovId });
+    
+    // If names are exactly the same after normalization
+    if (normalizedBank === normalizedGovId) {
+      console.log("Exact match found");
+      return true;
+    }
+    
+    // Split into words and filter meaningful words (length >= 2)
+    const bankWords = normalizedBank.split(' ').filter(word => word.length >= 2);
+    const govIdWords = normalizedGovId.split(' ').filter(word => word.length >= 2);
+    
+    console.log("Words:", { bankWords, govIdWords });
+    
+    // If either name has less than 2 words, be more strict
+    if (bankWords.length < 2 || govIdWords.length < 2) {
+      // For single names, require exact match or one contains the other
+      const singleBankName = bankWords[0] || '';
+      const singleGovIdName = govIdWords[0] || '';
+      
+      const isMatch = singleBankName === singleGovIdName || 
+                     singleBankName.includes(singleGovIdName) || 
+                     singleGovIdName.includes(singleBankName);
+      
+      console.log("Single name match:", isMatch);
+      return isMatch;
+    }
+    
+    // For multiple words, use stricter matching
+    let exactMatches = 0;
+    let partialMatches = 0;
+    
+    bankWords.forEach(bankWord => {
+      govIdWords.forEach(govIdWord => {
+        if (bankWord === govIdWord) {
+          exactMatches++;
+        } else if (bankWord.length >= 3 && govIdWord.length >= 3 && 
+                  (bankWord.includes(govIdWord) || govIdWord.includes(bankWord))) {
+          partialMatches++;
+        }
+      });
+    });
+    
+    console.log("Match counts:", { exactMatches, partialMatches, totalBankWords: bankWords.length, totalGovIdWords: govIdWords.length });
+    
+    // Matching criteria:
+    // 1. At least 2 exact word matches, OR
+    // 2. At least 1 exact match + 1 partial match, OR
+    // 3. If one name is subset of another with high similarity
+    
+    const minWords = Math.min(bankWords.length, govIdWords.length);
+    const isMatch = exactMatches >= 2 || 
+                   (exactMatches >= 1 && partialMatches >= 1) ||
+                   (exactMatches >= Math.max(1, minWords - 1));
+    
+    console.log("Final match result:", isMatch);
+    return isMatch;
+  };
+
   // Updated validate bank details function that works for both UPI and manual entry
   const validateBankDetails = async (bankAccountHolderName?: string): Promise<boolean> => {
     setIsValidating(true);
@@ -165,17 +241,21 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
           bankHolderName = bankData.full_name;
         } else {
           // Try to get from API as fallback
-          const response = await axios.get(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/bank_validation`,
-            {
-              headers: {
-                Authorization: `Bearer ${Cookies.get('authToken')}`
+          try {
+            const response = await axios.get(
+              `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/bank_validation`,
+              {
+                headers: {
+                  Authorization: `Bearer ${Cookies.get('authToken')}`
+                }
               }
-            }
-          );
+            );
 
-          if (response.data?.data?.bank?.full_name) {
-            bankHolderName = response.data.data.bank.full_name;
+            if (response.data?.data?.bank?.full_name) {
+              bankHolderName = response.data.data.bank.full_name;
+            }
+          } catch (apiError) {
+            console.warn("Could not fetch bank details from API:", apiError);
           }
         }
       }
@@ -188,10 +268,33 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return false;
       }
 
-      // Get government ID name
-      const govIdName = await getGovernmentIdName();
+      // Get government ID name from localStorage
+      const govIdName = getStoredFullName();
       
       if (!govIdName) {
+        // Try to fetch from API if not in localStorage
+        try {
+          const govIdNameFromApi = await getGovernmentIdName();
+          if (!govIdNameFromApi) {
+            if (!hasShownValidationToast) {
+              toast.error("Unable to verify identity. Please ensure your PAN details are completed.");
+              hasShownValidationToast = true;
+            }
+            return false;
+          }
+        } catch (error) {
+          console.error("Error fetching government ID name:", error);
+          if (!hasShownValidationToast) {
+            toast.error("Unable to verify identity. Please restart the process.");
+            hasShownValidationToast = true;
+          }
+          return false;
+        }
+      }
+
+      const finalGovIdName = govIdName || await getGovernmentIdName();
+      
+      if (!finalGovIdName) {
         if (!hasShownValidationToast) {
           toast.error("Unable to verify identity. Please restart the process.");
           hasShownValidationToast = true;
@@ -199,12 +302,17 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return false;
       }
 
-      // Compare names (allowing for minor variations)
-      const namesMatch = compareNames(bankHolderName.toLowerCase().trim(), govIdName.toLowerCase().trim());
+      console.log("Comparing names:", { 
+        bankAccountHolder: bankHolderName, 
+        governmentId: finalGovIdName 
+      });
+
+      // Compare names using improved logic
+      const namesMatch = compareNames(bankHolderName, finalGovIdName);
       
       if (!namesMatch) {
         if (!hasShownValidationToast) {
-          toast.error("Account holder name doesn't match with your official Government ID. Please try again with the correct bank account.");
+          toast.error(`Account holder name "${bankHolderName}" doesn't match with your Government ID name "${finalGovIdName}". Please ensure you're using the correct bank account.`);
           hasShownValidationToast = true;
         }
         
@@ -215,7 +323,7 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         return false;
       }
       
-      // Names match, proceed
+      console.log("Names matched successfully!");
       return true;
       
     } catch (error: unknown) {
@@ -249,41 +357,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     } finally {
       setIsValidating(false);
     }
-  };
-
-  // Enhanced name comparison function
-  const compareNames = (name1: string, name2: string): boolean => {
-    // Remove common prefixes/suffixes and normalize
-    const normalize = (name: string) => {
-      return name
-        .toLowerCase()
-        .replace(/\b(mr|mrs|ms|dr|prof|shri|smt|kumari)\b\.?/g, '')
-        .replace(/[.,\-_]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
-    
-    const normalized1 = normalize(name1);
-    const normalized2 = normalize(name2);
-    
-    console.log("Comparing names:", { bank: normalized1, govId: normalized2 });
-    
-    // Exact match
-    if (normalized1 === normalized2) return true;
-    
-    // Check if one name contains the other (for cases like "John Doe" vs "John")
-    const words1 = normalized1.split(' ').filter(w => w.length > 2);
-    const words2 = normalized2.split(' ').filter(w => w.length > 2);
-    
-    // Check if at least 2 significant words match or if it's a subset
-    const matchingWords = words1.filter(word => 
-      words2.some(w => w.includes(word) || word.includes(w))
-    );
-    
-    const isMatch = matchingWords.length >= Math.min(2, Math.min(words1.length, words2.length));
-    console.log("Name match result:", { matchingWords, isMatch });
-    
-    return isMatch;
   };
 
   // Enhanced onNext handler with validation
@@ -361,7 +434,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
       onNext();
     }
   };
-
 
   // Always show the same UI - whether fresh or completed
   const renderLinkingOption = () => {
