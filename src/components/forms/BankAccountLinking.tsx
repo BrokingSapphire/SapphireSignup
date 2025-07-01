@@ -336,48 +336,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     hasShownValidationToast = false;
   };
 
-  // Enhanced UPI success callback to validate names immediately
-  interface UpiData {
-    account_no?: string;
-    ifsc_code?: string;
-    account_type?: string;
-    full_name?: string;
-    account_holder_name?: string;
-    name?: string;
-    [key: string]: unknown; // Allow additional properties if needed
-  }
-
-  const handleUpiSuccess = async (upiData: UpiData) => {
-    // If UPI data contains bank account holder name, validate immediately
-    if (upiData?.full_name || upiData?.account_holder_name || upiData?.name) {
-      const bankAccountHolderName = upiData.full_name || upiData.account_holder_name || upiData.name;
-      
-      // Update bank data
-      setBankData({
-        account_no: upiData.account_no || '',
-        ifsc_code: upiData.ifsc_code || '',
-        account_type: upiData.account_type || 'savings',
-        full_name: bankAccountHolderName || ''
-      });
-      
-      // Validate names and call completion API
-      const isValid = await validateBankDetails(bankAccountHolderName, 'upi');
-      
-      if (isValid) {
-        // Names match and completion API called successfully, proceed to next step
-        setTimeout(() => {
-          onNext();
-        }, 1500);
-      } else {
-        // Names don't match or completion API failed, the validateBankDetails function will show the error toast
-        // and reset the linking method
-      }
-    } else {
-      // No name data from UPI, proceed normally
-      onNext();
-    }
-  };
-
   // Always show the same UI - whether fresh or completed
   const renderLinkingOption = () => {
     if (linkingMethod === "manual") {
@@ -395,8 +353,6 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         <UpiLinking 
           onNext={handleNext}
           onBack={() => setLinkingMethod(null)}
-          validateBankDetails={(bankHolderName) => validateBankDetails(bankHolderName, 'upi')}
-          onUpiSuccess={handleUpiSuccess}
         />
       );
     }

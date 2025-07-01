@@ -377,6 +377,8 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           throw new Error("Invalid bank details. Please check and try again.");
         } else if (response?.status === 401) {
           throw new Error("Authentication failed. Please restart the process.");
+        }else if (response?.status === 429){
+          throw new Error("Too many requests. Please try again later.");
         } else {
           throw new Error("Failed to verify bank account. Please try again.");
         }
