@@ -87,7 +87,7 @@ interface CompleteBankValidationResponse {
 
 const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   onNext,
-  onBack,
+  // onBack,
   initialData,
   isCompleted,
 }) => {
@@ -113,7 +113,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
   // Bank verification states
   const [verificationStage, setVerificationStage] = useState<'form' | 'penny_drop' | 'name_validation' | 'completion' | 'success'>('form');
-  const [bankAccountHolderName, setBankAccountHolderName] = useState<string>("");
+  const [, setBankAccountHolderName] = useState<string>("");
   const [retryCount, setRetryCount] = useState(0);
   const [isWaitingForRetry, setIsWaitingForRetry] = useState(false);
   const [retryCountdown, setRetryCountdown] = useState(0);

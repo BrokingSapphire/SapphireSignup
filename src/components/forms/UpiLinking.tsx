@@ -29,7 +29,7 @@ interface UpiData {
 const UpiLinking: React.FC<UpiLinkingProps> = ({ 
   onBack, 
   onNext,
-  onUpiSuccess
+  // onUpiSuccess
 }) => {
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [upiData, setUpiData] = useState<UpiData | null>(null);
