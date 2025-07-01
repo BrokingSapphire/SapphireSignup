@@ -239,13 +239,30 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
             }
           } catch { /* ignore */ }
         }
-        if (!storedName) {
+        // Defensive: If no name, fallback to manual
+        if (!accountHolderName) {
           setIsValidatingName(false);
-          setError('Could not find your official name for validation. Please restart.');
+          setError(null);
+          toast.success("The Account Holder name Couldn't be fetched from your bank. Please try manual verification.");
+          onBack();
           return;
         }
-        const normalize = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
-        if (normalize(accountHolderName) !== normalize(storedName)) {
+        // Improved name comparison: allow if main name matches, ignore extra words like (MINOR)
+        const normalize = (name: string) =>
+          name
+            .toLowerCase()
+            .replace(/\b(mr|mrs|ms|dr|shri|smt|kumari)\b\.?/g, '')
+            .replace(/[.,\-_()]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/\(.*?\)/g, '') // remove anything in parentheses
+            .trim();
+        const mainName = normalize(accountHolderName);
+        const storedMainName = normalize(storedName);
+        // Allow if either name contains the other (for cases like 'AVI SRIVASTAVA' vs 'AVI SRIVASTAVA MINOR')
+        if (
+          !mainName.includes(storedMainName) &&
+          !storedMainName.includes(mainName)
+        ) {
           setIsValidatingName(false);
           setError(null);
           toast.success("The Account Holder name Doesn't match with the name in the Gov id, Please try again");
@@ -458,18 +475,6 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
             <li>We&apos;ll automatically detect once payment is completed.</li>
           </ul>
         </div>
-
-        {isPolling && !isValidatingName && (
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <div className="flex items-center">
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-              <span className="text-blue-800 text-sm">
-                Waiting for UPI payment completion... 
-                {pollingTimeoutRef.current ? "" : ""}
-              </span>
-            </div>
-          </div>
-        )}
 
         {isValidatingName && (
           <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
