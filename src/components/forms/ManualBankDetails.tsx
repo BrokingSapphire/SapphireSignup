@@ -19,7 +19,7 @@ interface ManualBankDetailsProps {
   isCompleted?: boolean;
   validateBankDetails: (bankHolderName?: string) => Promise<boolean>;
 }
-
+ 
 interface FormData {
   ifscCode: string;
   accountNumber: string;
