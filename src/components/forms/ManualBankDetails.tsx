@@ -87,7 +87,7 @@ interface CompleteBankValidationResponse {
 
 const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   onNext,
-  onBack,
+  // onBack,
   initialData,
   isCompleted,
 }) => {
@@ -113,7 +113,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
   // Bank verification states
   const [verificationStage, setVerificationStage] = useState<'form' | 'penny_drop' | 'name_validation' | 'completion' | 'success'>('form');
-  const [bankAccountHolderName, setBankAccountHolderName] = useState<string>("");
+  const [, setBankAccountHolderName] = useState<string>("");
+  const [retryCount, setRetryCount] = useState(0);
+  const [isWaitingForRetry, setIsWaitingForRetry] = useState(false);
+  const [retryCountdown, setRetryCountdown] = useState(0);
 
   // Define a type for the bank data received from the API
   interface ApiBankData {
@@ -170,7 +173,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         setErrors(prev => ({ ...prev, ifscCode: undefined }));
       }
     } catch (error) {
-      console.error("IFSC API Error:", error);
+      console.error("[MANUAL] IFSC API Error:", error);
       setBankInfo({});
       setIfscError("Invalid IFSC code or bank not found");
       
@@ -200,10 +203,31 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           setErrors(prev => ({ ...prev, ifscCode: undefined }));
         }
       }
-    }, 300); // Reduced debounce time for better UX
+    }, 300);
 
     return () => clearTimeout(timeoutId);
   }, [formData.ifscCode]);
+
+  // Countdown effect for retry
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (retryCountdown > 0) {
+      intervalId = setInterval(() => {
+        setRetryCountdown(prev => {
+          if (prev <= 1) {
+            setIsWaitingForRetry(false);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [retryCountdown]);
 
   // Prefill data from initialData (API response) and show completion toast
   useEffect(() => {
@@ -311,36 +335,182 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return mapping[accountType] || accountType.toLowerCase();
   };
 
-  // Step 1: Penny Drop Verification
-  const performPennyDrop = async (): Promise<string | null> => {
+  // Enhanced error handling function
+  const handlePennyDropError = (err: unknown, attemptNumber: number): { shouldRetry: boolean; errorMessage: string; waitTime?: number } => {
+    console.error(`[MANUAL] Penny Drop Error (attempt ${attemptNumber}):`, err);
+    
+    type AxiosErrorResponse = {
+      response?: {
+        data?: { 
+          message?: string;
+          error?: {
+            message?: string;
+            details?: string[];
+            code?: number;
+          };
+        };
+        status?: number;
+      };
+    };
+
+    if (
+      typeof err === "object" &&
+      err !== null &&
+      "response" in err &&
+      typeof (err as AxiosErrorResponse).response === "object"
+    ) {
+      const response = (err as AxiosErrorResponse).response;
+      
+      console.log("[MANUAL] Error response:", response);
+      console.log("[MANUAL] Error response status:", response?.status);
+      console.log("[MANUAL] Error response data:", response?.data);
+      
+      // Check for wrapped errors in 500 responses
+      if (response?.status === 500 && response?.data?.error?.details) {
+        const details = response.data.error.details;
+        console.log("[MANUAL] Checking wrapped error details:", details);
+        
+        // Check for wrapped 429 error
+        const has429Error = details.some((detail: string) => 
+          detail.includes('429') || detail.toLowerCase().includes('too many requests')
+        );
+        
+        if (has429Error) {
+          const waitTime = Math.min(30 + (attemptNumber * 15), 120); // Progressive backoff
+          return {
+            shouldRetry: attemptNumber < 3,
+            errorMessage: `Too many requests. ${attemptNumber < 3 ? `Will retry in ${waitTime} seconds.` : 'Please try again later.'}`,
+            waitTime
+          };
+        }
+        
+        // Check for wrapped 422 error (Bank account doesn't exist)
+        const has422Error = details.some((detail: string) => 
+          detail.includes('422') || detail.toLowerCase().includes('unprocessable entity')
+        );
+        
+        if (has422Error) {
+          return {
+            shouldRetry: false,
+            errorMessage: "Bank account does not exist or invalid details provided. Please check your account number and IFSC code."
+          };
+        }
+        
+        // Check for wrapped 400 error (Bad request)
+        const has400Error = details.some((detail: string) => 
+          detail.includes('400') || detail.toLowerCase().includes('bad request')
+        );
+        
+        if (has400Error) {
+          return {
+            shouldRetry: false,
+            errorMessage: "Invalid bank details format. Please check and try again."
+          };
+        }
+        
+        // Check for wrapped 401 error (Unauthorized)
+        const has401Error = details.some((detail: string) => 
+          detail.includes('401') || detail.toLowerCase().includes('unauthorized')
+        );
+        
+        if (has401Error) {
+          return {
+            shouldRetry: false,
+            errorMessage: "Authentication failed. Please restart the process."
+          };
+        }
+      }
+      
+      // Check for direct 429 error
+      const is429Error = response?.status === 429 || 
+                        response?.data?.message?.toLowerCase().includes('too many requests') ||
+                        response?.data?.error?.message?.toLowerCase().includes('too many requests');
+      
+      if (is429Error) {
+        const waitTime = Math.min(30 + (attemptNumber * 15), 120);
+        return {
+          shouldRetry: attemptNumber < 3,
+          errorMessage: `Too many requests. ${attemptNumber < 3 ? `Will retry in ${waitTime} seconds.` : 'Please try again later.'}`,
+          waitTime
+        };
+      }
+      
+      // Handle direct status codes
+      if (response?.status === 500) {
+        // Generic 500 error without wrapped details
+        return {
+          shouldRetry: attemptNumber < 2,
+          errorMessage: "Server error occurred. Please try again.",
+          waitTime: 10
+        };
+      } else if (response?.status === 422) {
+        return {
+          shouldRetry: false,
+          errorMessage: "Bank account does not exist or invalid details provided. Please check your account number and IFSC code."
+        };
+      } else if (response?.status === 400) {
+        return {
+          shouldRetry: false,
+          errorMessage: "Invalid bank details format. Please check and try again."
+        };
+      } else if (response?.status === 401) {
+        return {
+          shouldRetry: false,
+          errorMessage: "Authentication failed. Please restart the process."
+        };
+      } else if (response?.data?.message) {
+        return {
+          shouldRetry: false,
+          errorMessage: `Bank verification failed: ${response.data.message}`
+        };
+      }
+    }
+    
+    return {
+      shouldRetry: false,
+      errorMessage: "Failed to verify bank account. Please try again."
+    };
+  };
+
+  // Step 1: Penny Drop Verification with retry logic
+  const performPennyDrop = async (attemptNumber: number = 1): Promise<string | null> => {
     setVerificationStage('penny_drop');
     
     try {
-      toast.info("Initiating bank account verification...");
+      console.log(`[MANUAL] Starting penny drop verification (attempt ${attemptNumber})...`);
+      toast.info(`Initiating bank account verification${attemptNumber > 1 ? ` (attempt ${attemptNumber})` : ''}...`);
+      
+      const requestData = {
+        step: "bank_validation",
+        validation_type: "bank",
+        bank: {
+          account_number: formData.accountNumber,
+          ifsc_code: formData.ifscCode,
+          account_type: mapAccountTypeToApi(formData.accountType),
+        }
+      };
+      
+      console.log("[MANUAL] Penny drop request data:", requestData);
       
       const response = await axios.post<PennyDropResponse>(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-        {
-          step: "bank_validation",
-          validation_type: "bank",
-          bank: {
-            account_number: formData.accountNumber,
-            ifsc_code: formData.ifscCode,
-            account_type: mapAccountTypeToApi(formData.accountType),
-          }
-        },
+        requestData,
         {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${Cookies.get('authToken')}`,
           },
+          timeout: 30000, // Increased timeout
         }
       );
 
-      console.log("Penny Drop Response:", response.data);
+      console.log("[MANUAL] Penny Drop Response:", response.data);
+      console.log("[MANUAL] Penny Drop Status:", response.status);
 
       // Extract account holder name from response
       const accountHolderName = response.data?.data?.account_holder_name;
+      
+      console.log("[MANUAL] Extracted account holder name:", accountHolderName);
       
       if (!accountHolderName) {
         throw new Error("Account holder name not found in response");
@@ -348,40 +518,29 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
 
       toast.success("Bank account verified! Validating account holder name...");
       setBankAccountHolderName(accountHolderName);
+      setRetryCount(0); // Reset retry count on success
       
       return accountHolderName;
       
     } catch (err: unknown) {
-      console.error("Penny Drop Error:", err);
+      const errorResult = handlePennyDropError(err, attemptNumber);
       
-      type AxiosErrorResponse = {
-        response?: {
-          data?: { message?: string };
-          status?: number;
-        };
-      };
-
-      if (
-        typeof err === "object" &&
-        err !== null &&
-        "response" in err &&
-        typeof (err as AxiosErrorResponse).response === "object"
-      ) {
-        const response = (err as AxiosErrorResponse).response;
+      if (errorResult.shouldRetry && errorResult.waitTime) {
+        console.log(`[MANUAL] Will retry after ${errorResult.waitTime} seconds...`);
+        setIsWaitingForRetry(true);
+        setRetryCountdown(errorResult.waitTime);
+        setError(errorResult.errorMessage);
         
-        if (response?.data?.message) {
-          throw new Error(`Bank verification failed: ${response.data.message}`);
-        } else if (response?.status === 422) {
-          throw new Error("Bank account does not exist or invalid details provided.");
-        } else if (response?.status === 400) {
-          throw new Error("Invalid bank details. Please check and try again.");
-        } else if (response?.status === 401) {
-          throw new Error("Authentication failed. Please restart the process.");
-        } else {
-          throw new Error("Failed to verify bank account. Please try again.");
-        }
+        // Wait and retry
+        await new Promise(resolve => setTimeout(resolve, (errorResult.waitTime ?? 10) * 1000));
+        
+        setIsWaitingForRetry(false);
+        setRetryCountdown(0);
+        setRetryCount(attemptNumber);
+        
+        return performPennyDrop(attemptNumber + 1);
       } else {
-        throw new Error("Failed to verify bank account. Please try again.");
+        throw new Error(errorResult.errorMessage);
       }
     }
   };
@@ -389,34 +548,84 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   // Step 2: Name Validation
   const performNameValidation = async (accountHolderName: string): Promise<boolean> => {
     setVerificationStage('name_validation');
+    
     try {
+      console.log("[MANUAL] Starting name validation...");
+      console.log("[MANUAL] Account holder name to validate:", accountHolderName);
+      
       toast.info("Validating account holder name with government ID...");
+      
       // Get full_name from localStorage
       let storedName = null;
       if (typeof window !== 'undefined') {
-        storedName = localStorage.getItem('full_name');
-        try {
-          if (storedName) {
-            storedName = JSON.parse(storedName);
-            if (typeof storedName === 'object' && storedName.full_name) {
-              storedName = storedName.full_name;
+        const rawStoredName = localStorage.getItem('full_name');
+        console.log("[MANUAL] Raw localStorage full_name:", rawStoredName);
+        
+        if (rawStoredName) {
+          try {
+            const parsedName = JSON.parse(rawStoredName);
+            console.log("[MANUAL] Parsed localStorage name:", parsedName);
+            
+            if (typeof parsedName === 'object' && parsedName?.full_name) {
+              storedName = parsedName.full_name;
+            } else if (typeof parsedName === 'string') {
+              storedName = parsedName;
             }
+          } catch (e) {
+            console.log("[MANUAL] Failed to parse localStorage name, treating as string:", e);
+            storedName = rawStoredName;
           }
-        } catch { /* ignore */ }
+        }
       }
+      
+      console.log("[MANUAL] Final stored name for comparison:", storedName);
+      
       if (!storedName) {
         toast.error('Could not find your official name for validation. Please restart.');
         return false;
       }
-      // Normalize and compare
-      const normalize = (name: string) => name.toLowerCase().replace(/[^a-z]/g, '');
-      if (normalize(accountHolderName) !== normalize(storedName)) {
+      
+      // Enhanced name comparison (similar to UPI)
+      const normalize = (name: string) => {
+        const normalized = name
+          .toLowerCase()
+          .replace(/\b(mr|mrs|ms|dr|shri|smt|kumari)\b\.?/g, '') // Remove titles
+          .replace(/[.,\-_()]/g, ' ') // Replace punctuation with spaces
+          .replace(/\s+/g, ' ') // Multiple spaces to single space
+          .replace(/\(.*?\)/g, '') // Remove anything in parentheses like (MINOR)
+          .trim();
+        
+        console.log(`[MANUAL] Normalized "${name}" to "${normalized}"`);
+        return normalized;
+      };
+      
+      const normalizedAccountName = normalize(accountHolderName);
+      const normalizedStoredName = normalize(storedName);
+      
+      console.log('[MANUAL] Comparing names:');
+      console.log('[MANUAL] - Account holder (normalized):', normalizedAccountName);
+      console.log('[MANUAL] - Stored name (normalized):', normalizedStoredName);
+
+      // Check if names match (allowing for partial matches)
+      const isExactMatch = normalizedAccountName === normalizedStoredName;
+      const isPartialMatch = normalizedAccountName.includes(normalizedStoredName) || 
+                            normalizedStoredName.includes(normalizedAccountName);
+      
+      console.log('[MANUAL] Name comparison results:');
+      console.log('[MANUAL] - Exact match:', isExactMatch);
+      console.log('[MANUAL] - Partial match:', isPartialMatch);
+      
+      if (!isExactMatch && !isPartialMatch) {
+        console.log('[MANUAL] Name mismatch detected');
         toast.error("Account holder name doesn't match your Government ID. Please use the correct bank account.");
         return false;
       }
+      
+      console.log('[MANUAL] Names matched successfully');
       return true;
+      
     } catch (error) {
-      console.error("Name Validation Error:", error);
+      console.error("[MANUAL] Name Validation Error:", error);
       throw error;
     }
   };
@@ -426,6 +635,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     setVerificationStage('completion');
     
     try {
+      console.log("[MANUAL] Starting completion API call...");
       toast.info("Finalizing bank verification...");
       
       const response = await axios.post<CompleteBankValidationResponse>(
@@ -439,17 +649,19 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         }
       );
 
-      console.log("Complete Bank Validation Response:", response.data);
+      console.log("[MANUAL] Complete Bank Validation Response:", response.data);
+      console.log("[MANUAL] Complete Bank Validation Status:", response.status);
 
       if (response.data?.data?.is_completed) {
         toast.success("Bank account verification completed successfully!");
         setVerificationStage('success');
+        console.log("[MANUAL] Bank verification completed successfully");
       } else {
         throw new Error("Bank verification completion failed");
       }
       
     } catch (error) {
-      console.error("Complete Bank Validation Error:", error);
+      console.error("[MANUAL] Complete Bank Validation Error:", error);
       throw new Error("Failed to complete bank verification. Please try again.");
     }
   };
@@ -457,62 +669,95 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
   // Main form submission handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || isWaitingForRetry) return;
+    
+    console.log("[MANUAL] Form submission started");
+    
     if (!hasChanges() && isCompleted) {
+      console.log("[MANUAL] No changes detected, proceeding to next step");
       onNext();
       return;
     }
+    
     if (!validateForm()) {
+      console.log("[MANUAL] Form validation failed");
       return;
     }
+    
     if (isLoadingBankInfo) {
       setError("Please wait for IFSC verification to complete");
       return;
     }
+    
     if (ifscError || !bankInfo.bankName) {
       setError("Please enter a valid IFSC code");
       return;
     }
+    
     setIsSubmitting(true);
     setError(null);
+    setRetryCount(0);
+    
     try {
-      // Step 1: Perform Penny Drop
+      // Step 1: Perform Penny Drop with retry logic
+      console.log("[MANUAL] Step 1: Starting penny drop");
       const accountHolderName = await performPennyDrop();
+      
       if (!accountHolderName) {
         throw new Error("Failed to get account holder name");
       }
+      
       // Step 2: Validate Name
+      console.log("[MANUAL] Step 2: Starting name validation");
       const isValid = await performNameValidation(accountHolderName);
+      
       if (!isValid) {
+        console.log("[MANUAL] Name validation failed, resetting form");
         setIsSubmitting(false);
         setVerificationStage('form');
         setBankAccountHolderName("");
         return;
       }
+      
       // Step 3: Complete Bank Validation
+      console.log("[MANUAL] Step 3: Starting completion");
       await completeBankValidation();
+      
+      console.log("[MANUAL] All steps completed, proceeding to next step");
       setTimeout(() => {
         onNext();
       }, 1500);
+      
     } catch (err: unknown) {
-      console.error("Bank Verification Process Error:", err);
+      console.error("[MANUAL] Bank Verification Process Error:", err);
+      
       if (err instanceof Error) {
         setError(err.message);
+        toast.error(err.message);
       } else {
         setError("Bank verification failed. Please try again.");
+        toast.error("Bank verification failed. Please try again.");
       }
+      
       setVerificationStage('form');
       setBankAccountHolderName("");
+      
     } finally {
       setIsSubmitting(false);
+      setIsWaitingForRetry(false);
+      setRetryCountdown(0);
     }
   };
 
   const getButtonText = () => {
+    if (isWaitingForRetry) {
+      return `Retrying in ${retryCountdown}s...`;
+    }
+    
     if (isSubmitting) {
       switch (verificationStage) {
         case 'penny_drop':
-          return "Verifying Bank Account...";
+          return retryCount > 0 ? `Retrying Bank Verification... (${retryCount + 1}/4)` : "Verifying Bank Account...";
         case 'name_validation':
           return "Validating Name...";
         case 'completion':
@@ -525,55 +770,9 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return "Verify Bank Account";
   };
 
-  const getVerificationStageIndicator = () => {
-    if (!isSubmitting && verificationStage === 'form') return null;
-
-    const stages = [
-      { key: 'penny_drop', label: 'Bank Verification', icon: '🏦' },
-      { key: 'name_validation', label: 'Name Validation', icon: '👤' },
-      { key: 'completion', label: 'Finalizing', icon: '✅' },
-    ];
-
-    return (
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="text-sm font-medium text-blue-800 mb-3">Verification Progress</h4>
-        <div className="space-y-2">
-          {stages.map((stage, index) => {
-            const isCurrentStage = verificationStage === stage.key;
-            const isCompletedStage = stages.findIndex(s => s.key === verificationStage) > index;
-            
-            return (
-              <div key={stage.key} className={`flex items-center space-x-3 ${
-                isCurrentStage ? 'text-blue-800' : isCompletedStage ? 'text-green-600' : 'text-gray-500'
-              }`}>
-                <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs ${
-                  isCurrentStage ? 'bg-blue-200 animate-pulse' : 
-                  isCompletedStage ? 'bg-green-200' : 'bg-gray-200'
-                }`}>
-                  {isCompletedStage ? '✓' : isCurrentStage ? '...' : index + 1}
-                </div>
-                <span className="text-sm">{stage.icon} {stage.label}</span>
-                {isCurrentStage && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        
-        {bankAccountHolderName && (
-          <div className="mt-3 p-2 bg-white rounded border border-blue-200">
-            <p className="text-xs text-blue-700">
-              <strong>Account Holder:</strong> {bankAccountHolderName}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
-  const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo;
+  const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo && !isWaitingForRetry;
 
   function toTitleCase(text: string): string {
     return text
@@ -602,12 +801,12 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
               name="ifscCode"
               value={formData.ifscCode}
               onChange={handleChange}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isWaitingForRetry}
               className={`w-full p-2 border rounded ${
                 errors.ifscCode ? "border-red-500" : 
                 bankInfo.bankName ? "border-green-500" : 
                 "border-gray-300"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${(isSubmitting || isWaitingForRetry) ? "opacity-50 cursor-not-allowed" : ""}`}
               placeholder="Enter IFSC Code (e.g., SBIN0001234)"
               maxLength={11}
             />
@@ -677,10 +876,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
               }));
               setError(null);
             }}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isWaitingForRetry}
             className={`w-full p-2 border rounded ${
               errors.accountNumber ? "border-red-500" : "border-gray-300"
-            } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+            } ${(isSubmitting || isWaitingForRetry) ? "opacity-50 cursor-not-allowed" : ""}`}
             placeholder="Enter Account Number"
             maxLength={18}
           />
@@ -695,23 +894,23 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           </label>
           <div className="flex gap-3">
             <div 
-              onClick={() => !isSubmitting && handleAccountTypeSelect("Savings")}
+              onClick={() => !(isSubmitting || isWaitingForRetry) && handleAccountTypeSelect("Savings")}
               className={`px-4 py-2 rounded border transition-colors text-xs sm:text-sm hover:border-gray-400 cursor-pointer ${
                 formData.accountType === "Savings"
                   ? "border-teal-800 bg-teal-50 text-teal-800"
                   : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${(isSubmitting || isWaitingForRetry) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               Savings
             </div>
 
             <div 
-              onClick={() => !isSubmitting && handleAccountTypeSelect("Current")}
+              onClick={() => !(isSubmitting || isWaitingForRetry) && handleAccountTypeSelect("Current")}
               className={`px-4 py-2 rounded border transition-colors text-xs sm:text-sm hover:border-gray-400 cursor-pointer ${
                 formData.accountType === "Current"
                   ? "border-teal-800 bg-teal-50 text-teal-800"
                   : "border-gray-300 text-gray-600 hover:border-gray-400"
-              } ${isSubmitting ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${(isSubmitting || isWaitingForRetry) ? "opacity-50 cursor-not-allowed" : ""}`}
             >
               Current
             </div>
@@ -721,8 +920,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           )}
         </div>
 
-        {/* Verification Stage Indicator */}
-        {getVerificationStageIndicator()}
 
         {error && (
           <div className="p-3 bg-red-50 rounded border border-red-200">
@@ -746,22 +943,18 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             The account holder name must match your Government ID.
           </p>
           
-          {/* Detailed verification process explanation */}
-         
+          {/* Rate limit explanation */}
+          {retryCount > 0 && (
+            <div className="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+              <h4 className="text-sm font-medium text-yellow-800 mb-1">Rate Limit Information</h4>
+              <p className="text-xs text-yellow-700">
+                Our verification service has rate limits to prevent abuse. If you encounter delays, 
+                the system will automatically retry with progressive delays (30s, 45s, 60s intervals).
+              </p>
+            </div>
+          )}
         </div>
 
-        {/* Back button */}
-        <div className="flex justify-center mt-4">
-          <Button
-            type="button"
-            variant="link"
-            onClick={onBack}
-            disabled={isSubmitting}
-            className="text-gray-600 hover:text-gray-800"
-          >
-            ← Back to linking options
-          </Button>
-        </div>
       </form>
     </div>
   );

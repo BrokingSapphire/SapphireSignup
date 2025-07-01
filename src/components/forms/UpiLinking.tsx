@@ -11,7 +11,7 @@ import { toast } from "sonner";
 interface UpiLinkingProps {
   onNext: () => void;
   onBack: () => void;
-  validateBankDetails: (bankAccountHolderName?: string) => Promise<boolean>;
+  validateBankDetails?: (bankAccountHolderName?: string) => Promise<boolean>;
   onUpiSuccess?: (upiData: Record<string, unknown>) => Promise<void>;
 }
 
@@ -29,21 +29,24 @@ interface UpiData {
 const UpiLinking: React.FC<UpiLinkingProps> = ({ 
   onBack, 
   onNext,
-  onUpiSuccess
+  // onUpiSuccess
 }) => {
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes in seconds
   const [upiData, setUpiData] = useState<UpiData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [, setIsPolling] = useState(false);
+  const [isPolling, setIsPolling] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [isValidatingName, setIsValidatingName] = useState(false);
+  const [pollAttempts, setPollAttempts] = useState(0);
+  const [hasProcessedPayment, setHasProcessedPayment] = useState(false);
 
   // Use refs to track polling state and intervals
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const hasProcessedPaymentRef = useRef(false);
 
   // Initialize UPI verification
   useEffect(() => {
@@ -91,12 +94,13 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
 
   // Start polling when UPI data is available
   useEffect(() => {
-    if (upiData && !isPollingRef.current && timeLeft > 0 && !isValidatingName && !error) {
+    if (upiData && !isPollingRef.current && timeLeft > 0 && !isValidatingName && !error && !hasProcessedPaymentRef.current) {
       startPolling();
     }
   }, [upiData, timeLeft, isValidatingName, error]);
 
   const stopPolling = useCallback(() => {
+    console.log('[UPI] Stopping polling...');
     isPollingRef.current = false;
     setIsPolling(false);
     
@@ -112,31 +116,35 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
   }, []);
 
   const startPolling = useCallback(() => {
-    if (isPollingRef.current) {
+    if (isPollingRef.current || hasProcessedPaymentRef.current) {
+      console.log('[UPI] Polling already active or payment already processed, skipping...');
       return;
     }
 
+    console.log('[UPI] Starting immediate polling...');
     isPollingRef.current = true;
     setIsPolling(true);
+    setPollAttempts(0);
     
-    // Start polling after 20 seconds
-    pollingTimeoutRef.current = setTimeout(() => {
-      // Initial check
-      checkUpiStatus();
-      
-      // Set up interval for subsequent checks
-      pollingIntervalRef.current = setInterval(() => {
-        if (isPollingRef.current) {
-          checkUpiStatus();
-        }
-      }, 3000); // Poll every 3 seconds
-      
-    }, 20000); // 20-second delay
+    // Start polling immediately with shorter intervals
+    checkUpiStatus();
+    
+    // Set up interval for subsequent checks
+    pollingIntervalRef.current = setInterval(() => {
+      if (isPollingRef.current && !hasProcessedPaymentRef.current) {
+        checkUpiStatus();
+      } else {
+        stopPolling();
+      }
+    }, 2000); // Poll every 2 seconds for faster detection
   }, []);
 
   const initializeUpiVerification = async () => {
+    console.log('[UPI] Initializing UPI verification...');
     setIsLoading(true);
     setError(null);
+    setHasProcessedPayment(false);
+    hasProcessedPaymentRef.current = false;
 
     try {
       const authToken = Cookies.get('authToken');
@@ -144,6 +152,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         throw new Error('No authentication token found');
       }
       
+      console.log('[UPI] Sending bank_validation_start request...');
       const response = await axios.post(
         `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
         {
@@ -158,17 +167,20 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         }
       );
 
+      console.log('[UPI] bank_validation_start response:', response.data);
+
       if (response.data?.data) {
         setUpiData(response.data.data);
         // Generate QR code from payment link
         if (response.data.data.payment_link) {
+          console.log('[UPI] Generating QR code for payment link:', response.data.data.payment_link);
           generateQRCode(response.data.data.payment_link);
         }
       } else {
         setError("Failed to initialize UPI verification. Please try again.");
       }
     } catch (err: unknown) {
-      console.error("UPI initialization error:", err);
+      console.error('[UPI] Initialization error:', err);
       handleApiError(err, "Failed to initialize UPI verification. Please try again.");
     } finally {
       setIsLoading(false);
@@ -186,19 +198,26 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
         }
       });
       setQrCodeDataUrl(qrCodeDataUrl);
+      console.log('[UPI] QR code generated successfully');
     } catch (err) {
-      console.error('Error generating QR code:', err);
+      console.error('[UPI] Error generating QR code:', err);
     }
   };
 
   const checkUpiStatus = async () => {
-    if (!isPollingRef.current) {
+    if (!isPollingRef.current || hasProcessedPaymentRef.current) {
+      console.log('[UPI] Polling stopped or payment already processed, skipping status check');
       return;
     }
+
+    const currentAttempt = pollAttempts + 1;
+    setPollAttempts(currentAttempt);
+    console.log(`[UPI] Checking UPI status... (attempt ${currentAttempt})`);
 
     try {
       const authToken = Cookies.get('authToken');
       if (!authToken) {
+        console.log('[UPI] No auth token, stopping polling');
         stopPolling();
         return;
       }
@@ -214,119 +233,212 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
             Authorization: `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
-          timeout: 10000 // 10-second timeout
+          timeout: 8000 // Reduced timeout for faster response
         }
       );
 
-      // If successful (status 201), UPI payment is complete
-      if (response.status === 201) {
+      console.log(`[UPI] Status check response status (attempt ${currentAttempt}):`, response.status);
+      console.log(`[UPI] Status check response data (attempt ${currentAttempt}):`, response.data);
+
+      // Check for payment completion based on both status and response data
+      const isPaymentComplete = (response.status === 200 || response.status === 201) && 
+                               response.data?.data && 
+                               (response.data.data.account_holder_name || response.data.data.full_name);
+
+      if (isPaymentComplete) {
+        console.log('[UPI] Payment detected as complete! Processing response...');
+        
+        // Immediately mark as processed to prevent duplicate processing
+        hasProcessedPaymentRef.current = true;
+        setHasProcessedPayment(true);
         stopPolling();
         setIsValidatingName(true);
+        
         toast.success("UPI payment completed! Validating account holder name...");
-        // Get bank details from response - the account holder name should be in the response
+        
+        // Get bank details from response
         const bankDetails = response.data?.data?.bank || response.data?.data;
         const accountHolderName = bankDetails?.account_holder_name || bankDetails?.full_name;
-        // Name validation against localStorage
-        let storedName = null;
-        if (typeof window !== 'undefined') {
-          storedName = localStorage.getItem('full_name');
-          try {
-            if (storedName) {
-              storedName = JSON.parse(storedName);
-              if (typeof storedName === 'object' && storedName.full_name) {
-                storedName = storedName.full_name;
-              }
-            }
-          } catch { /* ignore */ }
-        }
+        
+        console.log('[UPI] Full API response:', JSON.stringify(response.data, null, 2));
+        console.log('[UPI] Extracted bankDetails:', bankDetails);
+        console.log('[UPI] Extracted accountHolderName:', accountHolderName);
+        
         // Defensive: If no name, fallback to manual
         if (!accountHolderName) {
+          console.log('[UPI] No accountHolderName found, falling back to manual.');
           setIsValidatingName(false);
           setError(null);
-          toast.success("The Account Holder name Couldn't be fetched from your bank. Please try manual verification.");
+          hasProcessedPaymentRef.current = false;
+          setHasProcessedPayment(false);
+          toast.error("Account holder name couldn't be fetched from your bank. Please try manual verification.");
           onBack();
           return;
         }
-        // Improved name comparison: allow if main name matches, ignore extra words like (MINOR)
-        const normalize = (name: string) =>
-          name
-            .toLowerCase()
-            .replace(/\b(mr|mrs|ms|dr|shri|smt|kumari)\b\.?/g, '')
-            .replace(/[.,\-_()]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .replace(/\(.*?\)/g, '') // remove anything in parentheses
-            .trim();
-        const mainName = normalize(accountHolderName);
-        const storedMainName = normalize(storedName);
-        // Allow if either name contains the other (for cases like 'AVI SRIVASTAVA' vs 'AVI SRIVASTAVA MINOR')
-        if (
-          !mainName.includes(storedMainName) &&
-          !storedMainName.includes(mainName)
-        ) {
-          setIsValidatingName(false);
-          setError(null);
-          toast.success("The Account Holder name Doesn't match with the name in the Gov id, Please try again");
-          onBack(); // Show manual verification component
-          return;
-        }
-        // If onUpiSuccess callback is provided, use it for completion
-        if (onUpiSuccess && bankDetails) {
-          try {
-            const upiDataWithName = {
-              ...bankDetails,
-              account_holder_name: accountHolderName,
-              full_name: accountHolderName
-            };
-            await onUpiSuccess(upiDataWithName);
-            setIsValidatingName(false);
-          } catch (error) {
-            console.error("UPI success validation failed:", error);
-            setIsValidatingName(false);
-          }
-        } else {
-          // Fallback: call complete_upi_validation
-          try {
-            await axios.post(
-              `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-              { step: 'complete_upi_validation' },
-              {
-                headers: {
-                  Authorization: `Bearer ${Cookies.get('authToken')}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-            setIsValidatingName(false);
-            setTimeout(() => {
-              onNext();
-            }, 1500);
-          } catch (error) {
-            console.error("UPI success validation failed:", error);
-            setIsValidatingName(false);
-            setError('UPI validation completed but failed to save. Please try again.');
-          }
-        }
+
+        // Process the payment
+        await processPaymentCompletion(accountHolderName);
+        
+      } else if (response.status === 200 || response.status === 201) {
+        // Status is success but no account holder name yet - continue polling
+        console.log('[UPI] Payment status successful but no account details yet, continuing to poll...');
+      } else {
+        console.log('[UPI] Payment not yet completed, continuing to poll...');
       }
+
+      // Stop polling after too many attempts to prevent infinite polling
+      if (currentAttempt >= 150) { // 150 attempts * 2 seconds = 5 minutes
+        console.log('[UPI] Maximum polling attempts reached, stopping...');
+        stopPolling();
+        setError("Payment verification took too long. Please try again.");
+      }
+
     } catch (err: unknown) {
       const error = err as { response?: { status?: number; data?: { message?: string } } };
       
+      console.log(`[UPI] Status check error (attempt ${currentAttempt}):`, err);
+      console.log('[UPI] Error response status:', error.response?.status);
+      
       if (error.response?.status === 204) {
+        console.log('[UPI] Status 204 - Payment not yet completed, continuing to poll...');
         return;
       } else if (error.response?.status === 406) {
+        console.log('[UPI] Status 406 - UPI verification failed');
         stopPolling();
         setError("UPI verification failed. Please try again or use manual bank details.");
       } else if (error.response?.status === 401) {
+        console.log('[UPI] Status 401 - Session expired');
         stopPolling();
         setError("Session expired. Please refresh and try again.");
+      } else if (error.response?.status === 500) {
+        console.log('[UPI] Status 500 - Server error, will retry');
+        // Don't stop polling for 500 errors, they might be temporary
+        return;
       } else {
         // For other errors, log but continue polling for a few more attempts
-        console.warn(err);
+        console.warn('[UPI] Other error, continuing to poll:', err);
       }
+    }
+  };
+
+  const processPaymentCompletion = async (accountHolderName: string) => {
+    try {
+      // Get stored name from localStorage
+      let storedName = null;
+      if (typeof window !== 'undefined') {
+        const rawStoredName = localStorage.getItem('full_name');
+        console.log('[UPI] Raw localStorage full_name:', rawStoredName);
+        
+        if (rawStoredName) {
+          try {
+            const parsedName = JSON.parse(rawStoredName);
+            console.log('[UPI] Parsed localStorage name:', parsedName);
+            
+            if (typeof parsedName === 'object' && parsedName?.full_name) {
+              storedName = parsedName.full_name;
+            } else if (typeof parsedName === 'string') {
+              storedName = parsedName;
+            }
+          } catch (e) {
+            console.log('[UPI] Failed to parse localStorage name, treating as string:', e);
+            storedName = rawStoredName;
+          }
+        }
+      }
+      
+      console.log('[UPI] Final stored name for comparison:', storedName);
+      
+      if (!storedName) {
+        console.log('[UPI] No storedName found, falling back to manual.');
+        setIsValidatingName(false);
+        setError(null);
+        hasProcessedPaymentRef.current = false;
+        setHasProcessedPayment(false);
+        toast.error("Government ID name not found. Please try manual verification.");
+        onBack();
+        return;
+      }
+
+      // Enhanced name comparison with better logging
+      const normalize = (name: string) => {
+        const normalized = name
+          .toLowerCase()
+          .replace(/\b(mr|mrs|ms|dr|shri|smt|kumari)\b\.?/g, '') // Remove titles
+          .replace(/[.,\-_()]/g, ' ') // Replace punctuation with spaces
+          .replace(/\s+/g, ' ') // Multiple spaces to single space
+          .replace(/\(.*?\)/g, '') // Remove anything in parentheses like (MINOR)
+          .trim();
+        
+        console.log(`[UPI] Normalized "${name}" to "${normalized}"`);
+        return normalized;
+      };
+
+      const normalizedAccountName = normalize(accountHolderName);
+      const normalizedStoredName = normalize(storedName);
+      
+      console.log('[UPI] Comparing names:');
+      console.log('[UPI] - Account holder (normalized):', normalizedAccountName);
+      console.log('[UPI] - Stored name (normalized):', normalizedStoredName);
+
+      // Check if names match (allowing for partial matches)
+      const isExactMatch = normalizedAccountName === normalizedStoredName;
+      const isPartialMatch = normalizedAccountName.includes(normalizedStoredName) || 
+                            normalizedStoredName.includes(normalizedAccountName);
+      
+      console.log('[UPI] Name comparison results:');
+      console.log('[UPI] - Exact match:', isExactMatch);
+      console.log('[UPI] - Partial match:', isPartialMatch);
+      
+      if (!isExactMatch && !isPartialMatch) {
+        console.log('[UPI] Name mismatch detected, falling back to manual.');
+        setIsValidatingName(false);
+        setError(null);
+        hasProcessedPaymentRef.current = false;
+        setHasProcessedPayment(false);
+        toast.error("Account holder name doesn't match with your Government ID. Please try manual verification.");
+        onBack();
+        return;
+      }
+
+      // Names match! Call completion API
+      console.log('[UPI] Names matched! Calling complete_upi_validation API...');
+      
+      const completionResponse = await axios.post(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        { step: 'complete_upi_validation' },
+        {
+          headers: {
+            Authorization: `Bearer ${Cookies.get('authToken')}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+      
+      console.log('[UPI] Completion API response:', completionResponse.data);
+      console.log('[UPI] Completion API status:', completionResponse.status);
+      
+      setIsValidatingName(false);
+      toast.success("Bank account verified successfully!");
+      
+      setTimeout(() => {
+        console.log('[UPI] Proceeding to next step...');
+        onNext();
+      }, 1500);
+      
+    } catch (completionError) {
+      console.error('[UPI] Completion API failed:', completionError);
+      setIsValidatingName(false);
+      hasProcessedPaymentRef.current = false;
+      setHasProcessedPayment(false);
+      setError('UPI validation completed but failed to save. Please try again.');
+      toast.error('UPI validation completed but failed to save. Please try again.');
     }
   };
 
   const handleApiError = (err: unknown, defaultMessage: string) => {
     const error = err as { response?: { status?: number; data?: { message?: string } } };
+    
+    console.error('[UPI] API Error:', err);
     
     if (error.response?.data?.message) {
       setError(`Error: ${error.response.data.message}`);
@@ -338,12 +450,16 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
   };
 
   const handleRetry = () => { 
+    console.log('[UPI] Retrying UPI verification...');
     // Reset all states
     setTimeLeft(300);
     setError(null);
     setIsValidatingName(false);
     setQrCodeDataUrl("");
     setUpiData(null);
+    setPollAttempts(0);
+    setHasProcessedPayment(false);
+    hasProcessedPaymentRef.current = false;
     
     // Stop any existing polling
     stopPolling();
@@ -476,12 +592,38 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
           </ul>
         </div>
 
+        {isPolling && !isValidatingName && !hasProcessedPayment && (
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+              <span className="text-blue-800 text-sm">
+                Waiting for UPI payment completion... (Attempt {pollAttempts})
+              </span>
+            </div>
+          </div>
+        )}
+
         {isValidatingName && (
           <div className="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600 mr-3"></div>
               <span className="text-yellow-800 text-sm">
                 Validating account holder name...
+              </span>
+            </div>
+          </div>
+        )}
+
+        {hasProcessedPayment && !isValidatingName && (
+          <div className="mt-4 p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="flex items-center">
+              <div className="w-4 h-4 text-green-600 mr-3">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <span className="text-green-800 text-sm">
+                Payment processed successfully!
               </span>
             </div>
           </div>
@@ -494,7 +636,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
           variant="link"
           onClick={onBack}
           className="text-blue-500 mr-auto flex items-center"
-          disabled={isValidatingName}
+          disabled={isValidatingName || hasProcessedPayment}
         >
           Enter details manually <ArrowRight className="ml-1 h-4 w-4" />
         </Button>
