@@ -35,7 +35,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
   const [upiData, setUpiData] = useState<UpiData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isPolling, setIsPolling] = useState(false);
+  const [, setIsPolling] = useState(false);
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>("");
   const [isValidatingName, setIsValidatingName] = useState(false);
 
