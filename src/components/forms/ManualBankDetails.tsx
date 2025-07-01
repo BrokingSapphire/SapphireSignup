@@ -527,52 +527,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return "Verify Bank Account";
   };
 
-  const getVerificationStageIndicator = () => {
-    if (!isSubmitting && verificationStage === 'form') return null;
-
-    const stages = [
-      { key: 'penny_drop', label: 'Bank Verification', icon: '🏦' },
-      { key: 'name_validation', label: 'Name Validation', icon: '👤' },
-      { key: 'completion', label: 'Finalizing', icon: '✅' },
-    ];
-
-    return (
-      <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h4 className="text-sm font-medium text-blue-800 mb-3">Verification Progress</h4>
-        <div className="space-y-2">
-          {stages.map((stage, index) => {
-            const isCurrentStage = verificationStage === stage.key;
-            const isCompletedStage = stages.findIndex(s => s.key === verificationStage) > index;
-            
-            return (
-              <div key={stage.key} className={`flex items-center space-x-3 ${
-                isCurrentStage ? 'text-blue-800' : isCompletedStage ? 'text-green-600' : 'text-gray-500'
-              }`}>
-                <div className={`flex items-center justify-center w-6 h-6 rounded-full text-xs ${
-                  isCurrentStage ? 'bg-blue-200 animate-pulse' : 
-                  isCompletedStage ? 'bg-green-200' : 'bg-gray-200'
-                }`}>
-                  {isCompletedStage ? '✓' : isCurrentStage ? '...' : index + 1}
-                </div>
-                <span className="text-sm">{stage.icon} {stage.label}</span>
-                {isCurrentStage && (
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        
-        {bankAccountHolderName && (
-          <div className="mt-3 p-2 bg-white rounded border border-blue-200">
-            <p className="text-xs text-blue-700">
-              <strong>Account Holder:</strong> {bankAccountHolderName}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
 
   const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
   const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo;
@@ -723,13 +677,8 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           )}
         </div>
 
-        {/* Verification Stage Indicator */}
-        {getVerificationStageIndicator()}
-
         {error && (
-          <div className="p-3 bg-red-50 rounded border border-red-200">
-            <p className="text-red-600 text-sm">{error}</p>
-          </div>
+          toast.error(error)
         )}
 
         <Button
