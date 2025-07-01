@@ -41,7 +41,7 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  // const [retryCount, setRetryCount] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Add keyboard event listener for Enter key
@@ -90,7 +90,7 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
       if (response.data?.data?.uid) {
         setUploadUid(response.data.data.uid);
         setIsInitialized(true);
-        setRetryCount(0); // Reset retry count on success
+        // setRetryCount(0); // Reset retry count on success
         toast.success("Upload session initialized successfully!");
       } else {
         throw new Error("No UID received from server");
@@ -324,7 +324,7 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
     setUploadUid(null);
     setUploadedFile(null);
     setUploadProgress(null);
-    setRetryCount(prev => prev + 1);
+    // setRetryCount(prev => prev + 1);
     
     // Clear file input
     if (fileInputRef.current) {
@@ -381,9 +381,6 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
           <div className="text-center">
             <RefreshCw className="h-8 w-8 animate-spin text-teal-600 mx-auto mb-3" />
             <span className="text-gray-600">Setting up upload session...</span>
-            {retryCount > 0 && (
-              <p className="text-sm text-gray-500 mt-2">Retry attempt: {retryCount}</p>
-            )}
           </div>
         </div>
       </div>
@@ -531,23 +528,6 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
             className="hidden"
             disabled={isUploading || !uploadUid}
           />
-
-          {/* File requirements */}
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200 w-[80%] mx-auto">
-            <div className="flex items-start space-x-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-blue-800 text-sm">
-                <p className="font-medium mb-1">File Requirements:</p>
-                <ul className="list-disc list-inside space-y-1 text-xs">
-                  <li>File format: PDF only</li>
-                  <li>Maximum file size: 10MB</li>
-                  <li>Minimum file size: 10KB</li>
-                  <li>Document should be clear and readable</li>
-                  <li>Ensure all details are visible</li>
-                </ul>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 

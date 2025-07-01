@@ -597,7 +597,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
             <div className="flex items-center">
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
               <span className="text-blue-800 text-sm">
-                Waiting for UPI payment completion... (Attempt {pollAttempts})
+                Waiting for UPI payment completion...
               </span>
             </div>
           </div>
