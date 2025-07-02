@@ -100,6 +100,23 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     }
   }, [initialData, isCompleted, isSubmitting, hasJustSubmitted]);
 
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        
+        // If button is not disabled, trigger next action
+        if (!isButtonDisabled()) {
+          handleNext();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [currentPage, maritalStatus, selectedIncome, selectedExperience, selectedSettlement, isSubmitting]);
+
   const handleMaritalStatusSelect = (status: MaritalStatus) => {
     if (isSubmitting) return;
     setMaritalStatus(status);
@@ -133,8 +150,6 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     setShowValidation(!isValid);
     return isValid;
   };
-
-
 
   const validateForm = () => {
     const isValid = maritalStatus && selectedIncome && selectedExperience && selectedSettlement;
@@ -190,13 +205,6 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     }
   };
 
-  const handleBack = () => {
-    if (currentPage === 2) {
-      setCurrentPage(1);
-      setShowValidation(false);
-      setError(null);
-    }
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -525,14 +533,6 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
         description="Provide your personal information for account setup."
       />
 
-      {/* Page indicator */}
-      <div className="flex justify-center mt-4 mb-2">
-        <div className="flex space-x-2">
-          <div className={`w-3 h-3 rounded-full ${currentPage === 1 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
-          <div className={`w-3 h-3 rounded-full ${currentPage === 2 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
-        </div>
-      </div>
-
       {/* Render current page */}
       {currentPage === 1 ? renderPage1() : renderPage2()}
 
@@ -543,28 +543,45 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
       )}
 
       {/* Navigation buttons */}
-      <div className="flex justify-between mt-6 space-x-4">
-        {currentPage === 2 && (
-          <Button
-            onClick={handleBack}
-            variant="outline"
-            disabled={isSubmitting}
-            className="py-6 flex-1"
-          >
-            Back
-          </Button>
-        )}
-        
+      <div className="flex justify-center mt-6">
         <Button
           onClick={handleNext}
           variant={"ghost"}
           disabled={isButtonDisabled()}
-          className={`py-6 ${currentPage === 1 ? 'w-full' : 'flex-1'} ${
+          className={`py-6 w-full ${
             isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
           {getButtonText()}
         </Button>
+      </div>
+
+      {/* Page indicator - moved to bottom with navigation functionality */}
+      <div className="flex justify-center mt-6">
+        <div className="flex space-x-2">
+          <div 
+            className={`w-3 h-3 rounded-full cursor-pointer transition-colors ${
+              currentPage === 1 ? 'bg-teal-800' : 'bg-gray-300 hover:bg-gray-400'
+            } ${isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
+            onClick={() => !isSubmitting && setCurrentPage(1)}
+          ></div>
+          <div 
+            className={`w-3 h-3 rounded-full cursor-pointer transition-colors ${
+              currentPage === 2 ? 'bg-teal-800' : 'bg-gray-300 hover:bg-gray-400'
+            } ${isSubmitting ? 'cursor-not-allowed opacity-50' : ''}`}
+            onClick={() => {
+              if (!isSubmitting) {
+                // Only allow navigation to page 2 if page 1 is valid
+                if (validatePage1()) {
+                  setCurrentPage(2);
+                } else {
+                  // If page 1 is invalid, show validation and stay on page 1
+                  setShowValidation(true);
+                }
+              }
+            }}
+          ></div>
+        </div>
       </div>
     </div>
   );

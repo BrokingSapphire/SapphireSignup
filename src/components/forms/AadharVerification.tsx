@@ -6,6 +6,42 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 
+const getDateRestrictions = () => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  // const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+  // const currentDay = String(today.getDate()).padStart(2, '0');
+  
+  // Maximum date: today (no future dates)
+  
+  // Minimum date: 18 years ago from today
+  const minYear = currentYear - 100; // Allow up to 100 years old
+  const minDate = `${minYear}-01-01`;
+  
+  // Calculate the exact date 18 years ago
+  const eighteenYearsAgo = new Date(today);
+  eighteenYearsAgo.setFullYear(currentYear - 18);
+  
+  const maxAllowedYear = eighteenYearsAgo.getFullYear();
+  const maxAllowedMonth = String(eighteenYearsAgo.getMonth() + 1).padStart(2, '0');
+  const maxAllowedDay = String(eighteenYearsAgo.getDate()).padStart(2, '0');
+  
+  const maxAllowedDate = `${maxAllowedYear}-${maxAllowedMonth}-${maxAllowedDay}`;
+  
+  return {
+    min: minDate,
+    max: maxAllowedDate
+  };
+};
+
+
+const formatNameToTitleCase = (name: string): string => {
+  return name
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 interface AadhaarVerificationProps {
   onNext: () => void;
   initialData?: unknown;
@@ -23,7 +59,8 @@ const getFullNameFromStorage = () => {
   
   for (const source of sources) {
     if (source && source.trim()) {
-      return source.trim();
+      // Format the name to title case before returning
+      return formatNameToTitleCase(source.trim());
     }
   }
   return "";
@@ -99,53 +136,54 @@ const AadhaarVerification = ({
   }, [currentStep, isLoading]);
 
   // Enhanced full_name monitoring
-  useEffect(() => {
-    const checkForFullName = () => {
-      const currentFullName = getFullNameFromStorage();
-      if (currentFullName && currentFullName !== mismatchFormData.full_name) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: currentFullName
-        }));
-      }
-    };
+useEffect(() => {
+  const checkForFullName = () => {
+    const currentFullName = getFullNameFromStorage();
+    if (currentFullName && currentFullName !== mismatchFormData.full_name) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: formatNameToTitleCase(currentFullName)
+      }));
+    }
+  };
 
-    checkForFullName();
-    const fullNameCheckInterval = setInterval(checkForFullName, 1000);
+  checkForFullName();
+  const fullNameCheckInterval = setInterval(checkForFullName, 1000);
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'full_name' && e.newValue) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: e.newValue || ""
-        }));
-      }
-    };
+  const handleStorageChange = (e: StorageEvent) => {
+    if (e.key === 'full_name' && e.newValue) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: formatNameToTitleCase(e.newValue || "")
+      }));
+    }
+  };
 
-    window.addEventListener('storage', handleStorageChange);
+  window.addEventListener('storage', handleStorageChange);
 
-    return () => {
-      clearInterval(fullNameCheckInterval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [mismatchFormData.full_name]);
+  return () => {
+    clearInterval(fullNameCheckInterval);
+    window.removeEventListener('storage', handleStorageChange);
+  };
+}, [mismatchFormData.full_name]);
+
 
   // Get full_name from PAN step data
-  useEffect(() => {
-    const panData = getStepData(CheckpointStep.PAN);
-    if (panData?.full_name && typeof panData.full_name === 'string') {
-      const panFullName = panData.full_name.trim();
-      
-      localStorage.setItem("full_name", panFullName);
-      
-      if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: panFullName
-        }));
-      }
+useEffect(() => {
+  const panData = getStepData(CheckpointStep.PAN);
+  if (panData?.full_name && typeof panData.full_name === 'string') {
+    const panFullName = formatNameToTitleCase(panData.full_name.trim());
+    
+    localStorage.setItem("full_name", panFullName);
+    
+    if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: panFullName
+      }));
     }
-  }, [getStepData, mismatchFormData.full_name]);
+  }
+}, [getStepData, mismatchFormData.full_name]);
 
   // Check Aadhaar completion status and show toast
   useEffect(() => {
@@ -619,13 +657,34 @@ const AadhaarVerification = ({
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setMismatchFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
+const handleInputChange = (field: string, value: string) => {
+  if (field === 'dob') {
+    // Validate age when date is selected
+    const selectedDate = new Date(value);
+    const today = new Date();
+    const age = today.getFullYear() - selectedDate.getFullYear();
+    const monthDiff = today.getMonth() - selectedDate.getMonth();
+    
+    // Check if they haven't had their birthday this year yet
+    const hasHadBirthdayThisYear = monthDiff > 0 || (monthDiff === 0 && today.getDate() >= selectedDate.getDate());
+    const actualAge = hasHadBirthdayThisYear ? age : age - 1;
+    
+    if (actualAge < 18) {
+      toast.error("You must be at least 18 years old to proceed");
+      return; // Don't update the state with invalid date
+    }
+    
+    if (selectedDate > today) {
+      toast.error("Date of birth cannot be in the future");
+      return; // Don't update the state with future date
+    }
+  }
+  
+  setMismatchFormData(prev => ({
+    ...prev,
+    [field]: field === 'full_name' ? formatNameToTitleCase(value) : value
+  }));
+};
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.AADHAAR);
 
   // Show initialization loading only when actively loading
@@ -652,20 +711,6 @@ const AadhaarVerification = ({
           title={"Additional Verification Required"}
           description={"We detected a mismatch between your PAN and Aadhaar details. Please provide additional information to complete verification."}
         />
-
-        <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="flex items-start">
-            <svg className="w-6 h-6 text-yellow-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <div>
-              <h3 className="font-semibold text-yellow-800 mb-1">Aadhaar Mismatch Detected</h3>
-              <p className="text-yellow-700 text-sm mb-2">
-                The Aadhaar number linked to your PAN doesn&apos;t match the one from DigiLocker verification.
-              </p>
-            </div>
-          </div>
-        </div>
 
         <form onSubmit={handleMismatchSubmit} className="space-y-4">
           <div>
@@ -694,7 +739,10 @@ const AadhaarVerification = ({
               onChange={(e) => handleInputChange('dob', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSubmittingMismatch}
+              min={getDateRestrictions().min}
+              max={getDateRestrictions().max}
             />
+            
           </div>
 
           <Button

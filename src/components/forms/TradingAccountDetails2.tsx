@@ -83,6 +83,49 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     }
   }, [initialData, isCompleted, isSubmitting, hasJustSubmitted]);
 
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isSubmitting) return;
+
+      switch (event.key) {
+        case 'ArrowLeft':
+          event.preventDefault();
+          if (currentPage > 1) {
+            setCurrentPage(currentPage - 1);
+            setShowValidation(false);
+            setError(null);
+          }
+          break;
+        case 'ArrowRight':
+          event.preventDefault();
+          if (currentPage < 2) {
+            // Only move to next page if current page is valid
+            if (currentPage === 1 && occupation !== "") {
+              setCurrentPage(currentPage + 1);
+              setShowValidation(false);
+              setError(null);
+            }
+          }
+          break;
+        case 'Enter':
+          event.preventDefault();
+          handleNext();
+          break;
+        case 'Escape':
+          event.preventDefault();
+          setShowValidation(false);
+          setError(null);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [currentPage, occupation, isSubmitting]);
+
   const handleOccupationSelect = (selected: string) => {
     if (isSubmitting) return;
     setOccupation(selected);
@@ -102,8 +145,6 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     setShowValidation(!isValid);
     return isValid;
   };
-
-
 
   const validateForm = () => {
     const isValid = occupation !== "";
@@ -137,6 +178,22 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
     return occupationMapping[occupation] || "other";
   };
 
+  // Handle dot navigation
+  const handleDotClick = (pageNumber: number) => {
+    if (isSubmitting) return;
+    
+    // If trying to go to page 2, validate page 1 first
+    if (pageNumber === 2 && currentPage === 1) {
+      if (validatePage1()) {
+        setCurrentPage(pageNumber);
+      }
+    } else {
+      setCurrentPage(pageNumber);
+      setShowValidation(false);
+      setError(null);
+    }
+  };
+
   const handleNext = () => {
     if (currentPage === 1) {
       if (validatePage1()) {
@@ -144,14 +201,6 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
       }
     } else {
       handleSubmit();
-    }
-  };
-
-  const handleBack = () => {
-    if (currentPage === 2) {
-      setCurrentPage(1);
-      setShowValidation(false);
-      setError(null);
     }
   };
 
@@ -327,14 +376,6 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
         description={"Provide additional information for your trading account."}
       />
 
-      {/* Page indicator */}
-      <div className="flex justify-center mt-4 mb-6">
-        <div className="flex space-x-2">
-          <div className={`w-3 h-3 rounded-full ${currentPage === 1 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
-          <div className={`w-3 h-3 rounded-full ${currentPage === 2 ? 'bg-teal-800' : 'bg-gray-300'}`}></div>
-        </div>
-      </div>
-
       <form ref={formRef} onSubmit={handleSubmit}>
         {/* Render current page */}
         {currentPage === 1 ? renderPage1() : renderPage2()}
@@ -345,31 +386,37 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
           </div>
         )}
 
-        {/* Navigation buttons */}
-        <div className="flex justify-between space-x-4">
-          {currentPage === 2 && (
-            <Button
-              type="button"
-              onClick={handleBack}
-              variant="outline"
-              disabled={isSubmitting}
-              className="py-6 flex-1"
-            >
-              Back
-            </Button>
-          )}
-          
+        {/* Full width continue button */}
+        <div className="mb-6">
           <Button
             type="button"
             onClick={handleNext}
             variant={"ghost"}
             disabled={isButtonDisabled()}
-            className={`py-6 ${currentPage === 1 ? 'w-full' : 'flex-1'} ${
+            className={`py-6 w-full ${
               isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >
             {getButtonText()}
           </Button>
+        </div>
+
+        {/* Page indicator dots at bottom */}
+        <div className="flex justify-center">
+          <div className="flex space-x-2">
+            {[1, 2].map((pageNum) => (
+              <button
+                key={pageNum}
+                type="button"
+                onClick={() => handleDotClick(pageNum)}
+                disabled={isSubmitting}
+                className={`w-3 h-3 rounded-full transition-colors ${
+                  currentPage === pageNum ? 'bg-teal-800' : 'bg-gray-300 hover:bg-gray-400'
+                } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                aria-label={`Go to page ${pageNum}`}
+              />
+            ))}
+          </div>
         </div>
       </form>
     </div>

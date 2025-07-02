@@ -509,14 +509,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
           >
             Try Again
           </Button>
-          <Button
-            type="button"
-            variant="link"
-            onClick={onBack}
-            className="text-blue-500"
-          >
-            Enter details manually
-          </Button>
+         
         </div>
       </div>
     );

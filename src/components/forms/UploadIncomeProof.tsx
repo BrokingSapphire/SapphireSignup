@@ -72,6 +72,23 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
     checkIncomeProofStatus();
   }, []);
 
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        
+        // If button is not disabled, trigger upload and continue
+        if (!isButtonDisabled()) {
+          handleUploadAndContinue();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selectedFile, isIncomeProofCompleted, isUploading, isInitializing]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -371,6 +388,10 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
     return "Continue";
   };
 
+  const isButtonDisabled = () => {
+    return isUploading || isInitializing || (!selectedFile && !isIncomeProofCompleted);
+  };
+
   const isProcessing = isUploading || isInitializing;
 
   return (
@@ -502,16 +523,16 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
         <Button
           variant="ghost"
           onClick={handleUploadAndContinue}
-          disabled={isProcessing || (!selectedFile && !isIncomeProofCompleted)}
+          disabled={isButtonDisabled()}
           className={`${onSkip ? 'flex-1' : 'w-full'} py-6 ${
-            (isProcessing || (!selectedFile && !isIncomeProofCompleted)) ? "opacity-50 cursor-not-allowed" : ""
+            isButtonDisabled() ? "opacity-50 cursor-not-allowed" : ""
           }`}
         >
           {getButtonText()}
         </Button>
       </div>
 
-      <div className="text-center text-sm text-gray-600 mt-4">
+      <div className="hidden lg:block text-center text-sm text-gray-600 mt-4">
         <p>
           Upload any of the above documents to verify your income eligibility for derivative trading.
         </p>
