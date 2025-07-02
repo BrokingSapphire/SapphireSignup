@@ -32,25 +32,19 @@ interface FormErrors {
   accountType?: string;
 }
 
-// Razorpay IFSC API Response Type
-interface IFSCApiResponse {
-  ISO3166: string;
-  MICR: string;
-  DISTRICT: string;
-  UPI: boolean;
-  CENTRE: string;
-  ADDRESS: string;
-  RTGS: boolean;
-  STATE: string;
-  BRANCH: string;
-  NEFT: boolean;
-  SWIFT: string | null;
-  CONTACT: string;
-  CITY: string;
-  IMPS: boolean;
-  BANK: string;
-  BANKCODE: string;
-  IFSC: string;
+// Backend IFSC API Response Type
+interface BackendIFSCResponse {
+  message: string;
+  data: {
+    ifsc_code: string;
+    bank_details: {
+      bank_name: string;
+      branch_name: string;
+      city: string;
+      district: string;
+      state: string;
+    };
+  };
 }
 
 interface BankInfo {
@@ -147,7 +141,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return ifscRegex.test(ifscCode);
   };
 
-  // Fetch bank details from Razorpay IFSC API
+  // Fetch bank details from your backend IFSC API
   const fetchBankDetails = async (ifscCode: string) => {
     if (!ifscCode || ifscCode.length !== 11 || !validateIFSCCode(ifscCode)) {
       setBankInfo({});
@@ -159,26 +153,76 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     setIfscError(null);
     
     try {
-      const response = await axios.get<IFSCApiResponse>(`https://ifsc.razorpay.com/${ifscCode}`);
+      console.log(`[MANUAL] Fetching IFSC details for: ${ifscCode}`);
       
-      if (response.data) {
+      // Call your backend IFSC validation API
+      const response = await axios.post<BackendIFSCResponse>(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/validate-ifsc`,
+        {
+          ifsc_code: ifscCode
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${Cookies.get('authToken')}`,
+          },
+          timeout: 10000,
+        }
+      );
+
+      console.log("[MANUAL] IFSC API Response:", response.data);
+      
+      if (response.data?.data?.bank_details) {
+        const bankDetails = response.data.data.bank_details;
+        
         setBankInfo({
-          bankName: response.data.BANK,
-          branch: response.data.BRANCH,
-          city: response.data.CITY,
-          state: response.data.STATE,
+          bankName: bankDetails.bank_name,
+          branch: bankDetails.branch_name,
+          city: bankDetails.city,
+          state: bankDetails.state,
         });
         
         // Clear IFSC error if API call is successful
         setErrors(prev => ({ ...prev, ifscCode: undefined }));
+        setIfscError(null);
+        
+        console.log("[MANUAL] Bank info updated successfully");
+      } else {
+        throw new Error("Invalid response format from IFSC API");
       }
-    } catch (error) {
+      
+    } catch (error: any) {
       console.error("[MANUAL] IFSC API Error:", error);
       setBankInfo({});
-      setIfscError("Invalid IFSC code or bank not found");
       
-      // Set IFSC error in form errors
-      setErrors(prev => ({ ...prev, ifscCode: "Invalid IFSC code or bank not found" }));
+      // Handle different error types based on your backend responses
+      if (error.response?.status === 422) {
+        // UnprocessableEntityError from your backend
+        const errorMsg = error.response?.data?.message || "Invalid IFSC code";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      } else if (error.response?.status === 400) {
+        // BadRequestError from your backend
+        const errorMsg = error.response?.data?.message || "IFSC code is required";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      } else if (error.response?.status === 404) {
+        const errorMsg = "IFSC code not found";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      } else if (error.code === 'ECONNABORTED') {
+        const errorMsg = "Request timeout. Please check your connection and try again.";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      } else if (error.response?.status >= 500) {
+        const errorMsg = "Server error. Please try again later.";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      } else {
+        const errorMsg = error.response?.data?.message || "Unable to verify IFSC code. Please try again.";
+        setIfscError(errorMsg);
+        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+      }
     } finally {
       setIsLoadingBankInfo(false);
     }
@@ -770,7 +814,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
     return "Verify Bank Account";
   };
 
-
   const isFormValid = formData.ifscCode && formData.accountNumber && formData.accountType && !ifscError && bankInfo.bankName;
   const canSubmit = isFormValid && !isSubmitting && !isLoadingBankInfo && !isWaitingForRetry;
 
@@ -919,7 +962,6 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
             <p className="text-xs text-red-500">{errors.accountType}</p>
           )}
         </div>
-
 
         {error && (
           <div className="p-3 bg-red-50 rounded border border-red-200">
