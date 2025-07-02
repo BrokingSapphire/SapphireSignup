@@ -191,35 +191,56 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
         throw new Error("Invalid response format from IFSC API");
       }
       
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("[MANUAL] IFSC API Error:", error);
       setBankInfo({});
-      
-      // Handle different error types based on your backend responses
-      if (error.response?.status === 422) {
-        // UnprocessableEntityError from your backend
-        const errorMsg = error.response?.data?.message || "Invalid IFSC code";
-        setIfscError(errorMsg);
-        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
-      } else if (error.response?.status === 400) {
-        // BadRequestError from your backend
-        const errorMsg = error.response?.data?.message || "IFSC code is required";
-        setIfscError(errorMsg);
-        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
-      } else if (error.response?.status === 404) {
-        const errorMsg = "IFSC code not found";
-        setIfscError(errorMsg);
-        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
-      } else if (error.code === 'ECONNABORTED') {
+
+      // Type guard for error object
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { status?: number; data?: { message?: string } } }).response === "object"
+      ) {
+        const errResp = (error as { response?: { status?: number; data?: { message?: string } }; code?: string }).response;
+        const errCode = (error as { code?: string }).code;
+
+        if (errResp?.status === 422) {
+          const errorMsg = errResp.data?.message || "Invalid IFSC code";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        } else if (errResp?.status === 400) {
+          const errorMsg = errResp.data?.message || "IFSC code is required";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        } else if (errResp?.status === 404) {
+          const errorMsg = "IFSC code not found";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        } else if (errCode === 'ECONNABORTED') {
+          const errorMsg = "Request timeout. Please check your connection and try again.";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        } else if (errResp?.status && errResp.status >= 500) {
+          const errorMsg = "Server error. Please try again later.";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        } else {
+          const errorMsg = errResp?.data?.message || "Unable to verify IFSC code. Please try again.";
+          setIfscError(errorMsg);
+          setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
+        }
+      } else if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === 'ECONNABORTED'
+      ) {
         const errorMsg = "Request timeout. Please check your connection and try again.";
         setIfscError(errorMsg);
         setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
-      } else if (error.response?.status >= 500) {
-        const errorMsg = "Server error. Please try again later.";
-        setIfscError(errorMsg);
-        setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
       } else {
-        const errorMsg = error.response?.data?.message || "Unable to verify IFSC code. Please try again.";
+        const errorMsg = "Unable to verify IFSC code. Please try again.";
         setIfscError(errorMsg);
         setErrors(prev => ({ ...prev, ifscCode: errorMsg }));
       }
