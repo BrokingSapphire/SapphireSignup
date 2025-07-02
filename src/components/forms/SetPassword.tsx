@@ -48,13 +48,38 @@ const SetPassword: React.FC<SetPasswordProps> = ({
     hasSpecialChar: false,
   });
 
-  // Add keyboard event handler for Enter key
+  // Enhanced keyboard event handler
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && isFormValid() && !isLoading) {
       e.preventDefault();
       handlePasswordSubmit();
     }
   };
+
+  // Global keyboard navigation handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (isLoading) return;
+
+      switch (event.key) {
+        case 'Enter':
+          event.preventDefault();
+          if (isFormValid() && !isLoading) {
+            handlePasswordSubmit();
+          }
+          break;
+        case 'Escape':
+          event.preventDefault();
+          setError(null);
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleGlobalKeyDown);
+    };
+  }, [isLoading, password, confirmPassword, validation]);
 
   // Prefill data from initialData (API response) and localStorage
   useEffect(() => {
@@ -377,26 +402,7 @@ const SetPassword: React.FC<SetPasswordProps> = ({
               </div>
             ))}
           </div>
-          
-          {/* Password match indicator */}
-          {confirmPassword.length > 0 && (
-            <div className="flex items-center mt-2 pt-2 border-t border-gray-200">
-              {password === confirmPassword ? (
-                <Check className="h-4 w-4 text-green-500 mr-2" />
-              ) : (
-                <X className="h-4 w-4 text-red-500 mr-2" />
-              )}
-              <span
-                className={`text-sm ${
-                  password === confirmPassword
-                    ? "text-green-700"
-                    : "text-red-700"
-                }`}
-              >
-                Passwords match
-              </span>
-            </div>
-          )}
+
         </div>
 
         {error && (

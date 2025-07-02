@@ -29,6 +29,17 @@ const MPIN: React.FC<MPINProps> = ({
   const mpinRefs = useRef<(HTMLInputElement | null)[]>([]);
   const confirmMpinRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Function to handle going back to enter step
+  const handleEditMpin = () => {
+    setStep('enter');
+    setMpin(["", "", "", ""]);
+    setConfirmMpin(["", "", "", ""]);
+    setError(null);
+    setTimeout(() => {
+      mpinRefs.current[0]?.focus();
+    }, 100);
+  };
+
   // Memoize handleSubmit to prevent unnecessary re-renders and fix dependency issue
   const handleSubmit = useCallback(async () => {
     if (!clientId) {
@@ -318,9 +329,15 @@ const MPIN: React.FC<MPINProps> = ({
           </div>
         </div>
 
-        {/* Progress indicator */}
+        {/* Progress indicator with clickable first dot */}
         <div className="flex justify-center space-x-2">
-          <div className={`w-3 h-3 rounded-full ${step === 'enter' ? 'bg-teal-600' : 'bg-green-500'}`} />
+          <div 
+            className={`w-3 h-3 rounded-full cursor-pointer transition-all hover:scale-110 ${
+              step === 'enter' ? 'bg-teal-600' : 'bg-green-500 hover:bg-green-600'
+            }`}
+            onClick={handleEditMpin}
+            title="Click to edit MPIN"
+          />
           <div className={`w-3 h-3 rounded-full ${step === 'confirm' ? 'bg-teal-600' : 'bg-gray-300'}`} />
         </div>
 
@@ -346,7 +363,7 @@ const MPIN: React.FC<MPINProps> = ({
           )}
         </div>
 
-        <div className="text-center text-sm text-gray-600">
+        <div className="hidden lg:block text-center text-sm text-gray-600">
           <p>
             Your MPIN will be used for secure transactions and account access.
             Keep it confidential and don&apos;t share with anyone.
@@ -354,6 +371,11 @@ const MPIN: React.FC<MPINProps> = ({
           {step === 'confirm' && (
             <p className="mt-2 text-xs text-gray-500">
               <strong>Press Enter to submit when all digits are entered</strong>
+            </p>
+          )}
+          {step === 'confirm' && (
+            <p className="mt-1 text-xs text-gray-500">
+              Click the first dot above to change your MPIN
             </p>
           )}
         </div>

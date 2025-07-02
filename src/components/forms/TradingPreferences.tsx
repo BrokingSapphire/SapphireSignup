@@ -205,13 +205,6 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
     }
   };
 
-  const handleBack = () => {
-    if (currentPage === 2) {
-      setCurrentPage(1);
-      setShowValidation(false);
-      setError(null);
-    }
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();

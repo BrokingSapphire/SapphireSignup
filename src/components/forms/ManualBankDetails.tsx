@@ -1000,7 +1000,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
           {getButtonText()}
         </Button>
 
-        <div className="text-center text-sm text-gray-600 mt-4">
+        <div className="hidden lg:block text-center text-sm text-gray-600 mt-4">
           <p>
             We&apos;ll verify your bank account details for secure transactions. 
             The account holder name must match your Government ID.
