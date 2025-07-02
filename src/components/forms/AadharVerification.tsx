@@ -6,6 +6,36 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 
+const getDateRestrictions = () => {
+  const today = new Date();
+  const currentYear = today.getFullYear();
+  const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+  const currentDay = String(today.getDate()).padStart(2, '0');
+  
+  // Maximum date: today (no future dates)
+  const maxDate = `${currentYear}-${currentMonth}-${currentDay}`;
+  
+  // Minimum date: 18 years ago from today
+  const minYear = currentYear - 100; // Allow up to 100 years old
+  const maxAgeYear = currentYear - 18; // Must be at least 18 years old
+  const minDate = `${minYear}-01-01`;
+  
+  // Calculate the exact date 18 years ago
+  const eighteenYearsAgo = new Date(today);
+  eighteenYearsAgo.setFullYear(currentYear - 18);
+  
+  const maxAllowedYear = eighteenYearsAgo.getFullYear();
+  const maxAllowedMonth = String(eighteenYearsAgo.getMonth() + 1).padStart(2, '0');
+  const maxAllowedDay = String(eighteenYearsAgo.getDate()).padStart(2, '0');
+  
+  const maxAllowedDate = `${maxAllowedYear}-${maxAllowedMonth}-${maxAllowedDay}`;
+  
+  return {
+    min: minDate,
+    max: maxAllowedDate
+  };
+};
+
 
 const formatNameToTitleCase = (name: string): string => {
   return name
@@ -630,12 +660,33 @@ useEffect(() => {
   };
 
 const handleInputChange = (field: string, value: string) => {
+  if (field === 'dob') {
+    // Validate age when date is selected
+    const selectedDate = new Date(value);
+    const today = new Date();
+    const age = today.getFullYear() - selectedDate.getFullYear();
+    const monthDiff = today.getMonth() - selectedDate.getMonth();
+    
+    // Check if they haven't had their birthday this year yet
+    const hasHadBirthdayThisYear = monthDiff > 0 || (monthDiff === 0 && today.getDate() >= selectedDate.getDate());
+    const actualAge = hasHadBirthdayThisYear ? age : age - 1;
+    
+    if (actualAge < 18) {
+      toast.error("You must be at least 18 years old to proceed");
+      return; // Don't update the state with invalid date
+    }
+    
+    if (selectedDate > today) {
+      toast.error("Date of birth cannot be in the future");
+      return; // Don't update the state with future date
+    }
+  }
+  
   setMismatchFormData(prev => ({
     ...prev,
     [field]: field === 'full_name' ? formatNameToTitleCase(value) : value
   }));
 };
-
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.AADHAAR);
 
   // Show initialization loading only when actively loading
@@ -704,7 +755,10 @@ const handleInputChange = (field: string, value: string) => {
               onChange={(e) => handleInputChange('dob', e.target.value)}
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               disabled={isSubmittingMismatch}
+              min={getDateRestrictions().min}
+              max={getDateRestrictions().max}
             />
+            
           </div>
 
           <Button
