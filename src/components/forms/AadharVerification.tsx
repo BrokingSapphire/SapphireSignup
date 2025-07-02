@@ -9,8 +9,6 @@ import { toast } from "sonner";
 const getDateRestrictions = () => {
   const today = new Date();
   const currentYear = today.getFullYear();
-  // const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
-  // const currentDay = String(today.getDate()).padStart(2, '0');
   
   // Maximum date: today (no future dates)
   
@@ -34,7 +32,6 @@ const getDateRestrictions = () => {
   };
 };
 
-
 const formatNameToTitleCase = (name: string): string => {
   return name
     .toLowerCase()
@@ -42,6 +39,7 @@ const formatNameToTitleCase = (name: string): string => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 };
+
 interface AadhaarVerificationProps {
   onNext: () => void;
   initialData?: unknown;
@@ -66,6 +64,14 @@ const getFullNameFromStorage = () => {
   return "";
 };
 
+// DigiLocker session management
+const DIGILOCKER_STORAGE_KEYS = {
+  REDIRECT_FLOW: 'digilocker_redirect_flow',
+  SESSION_URL: 'digilocker_session_url',
+  POPUP_FAILED: 'digilocker_popup_failed',
+  RETURN_FROM_REDIRECT: 'digilocker_return_from_redirect'
+};
+
 const AadhaarVerification = ({ 
   onNext, 
   isCompleted,
@@ -76,6 +82,7 @@ const AadhaarVerification = ({
   const [currentStep, setCurrentStep] = useState<'initial' | 'digilocker_pending' | 'mismatch'>('initial');
   const [digilockerUrl, setDigilockerUrl] = useState<string>('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isRedirectFlow, setIsRedirectFlow] = useState(false);
   
   // Popup window management
   const digilockerWindowRef = useRef<Window | null>(null);
@@ -116,6 +123,42 @@ const AadhaarVerification = ({
     };
   }, []);
 
+  // Check if returning from DigiLocker redirect
+  useEffect(() => {
+    const checkRedirectReturn = () => {
+      const wasRedirectedFromDigilocker = localStorage.getItem(DIGILOCKER_STORAGE_KEYS.REDIRECT_FLOW);
+      const returnFromRedirect = localStorage.getItem(DIGILOCKER_STORAGE_KEYS.RETURN_FROM_REDIRECT);
+      const savedUrl = localStorage.getItem(DIGILOCKER_STORAGE_KEYS.SESSION_URL);
+      
+      if (wasRedirectedFromDigilocker === 'true' || returnFromRedirect === 'true') {
+        setIsRedirectFlow(true);
+        
+        // Restore the DigiLocker URL if available
+        if (savedUrl) {
+          setDigilockerUrl(savedUrl);
+        }
+        
+        // Clean up redirect flags
+        localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.REDIRECT_FLOW);
+        localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.RETURN_FROM_REDIRECT);
+        
+        // Show status message
+        toast.info("Checking DigiLocker verification status...", {
+          duration: 3000
+        });
+        
+        // Start polling immediately to check status
+        setTimeout(() => {
+          if (isComponentMounted.current) {
+            startBackgroundPolling();
+          }
+        }, 1000);
+      }
+    };
+
+    checkRedirectReturn();
+  }, []);
+
   // Add keyboard event listener for Enter key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -136,54 +179,53 @@ const AadhaarVerification = ({
   }, [currentStep, isLoading]);
 
   // Enhanced full_name monitoring
-useEffect(() => {
-  const checkForFullName = () => {
-    const currentFullName = getFullNameFromStorage();
-    if (currentFullName && currentFullName !== mismatchFormData.full_name) {
-      setMismatchFormData(prev => ({
-        ...prev,
-        full_name: formatNameToTitleCase(currentFullName)
-      }));
-    }
-  };
+  useEffect(() => {
+    const checkForFullName = () => {
+      const currentFullName = getFullNameFromStorage();
+      if (currentFullName && currentFullName !== mismatchFormData.full_name) {
+        setMismatchFormData(prev => ({
+          ...prev,
+          full_name: formatNameToTitleCase(currentFullName)
+        }));
+      }
+    };
 
-  checkForFullName();
-  const fullNameCheckInterval = setInterval(checkForFullName, 1000);
+    checkForFullName();
+    const fullNameCheckInterval = setInterval(checkForFullName, 1000);
 
-  const handleStorageChange = (e: StorageEvent) => {
-    if (e.key === 'full_name' && e.newValue) {
-      setMismatchFormData(prev => ({
-        ...prev,
-        full_name: formatNameToTitleCase(e.newValue || "")
-      }));
-    }
-  };
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'full_name' && e.newValue) {
+        setMismatchFormData(prev => ({
+          ...prev,
+          full_name: formatNameToTitleCase(e.newValue || "")
+        }));
+      }
+    };
 
-  window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange);
 
-  return () => {
-    clearInterval(fullNameCheckInterval);
-    window.removeEventListener('storage', handleStorageChange);
-  };
-}, [mismatchFormData.full_name]);
-
+    return () => {
+      clearInterval(fullNameCheckInterval);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [mismatchFormData.full_name]);
 
   // Get full_name from PAN step data
-useEffect(() => {
-  const panData = getStepData(CheckpointStep.PAN);
-  if (panData?.full_name && typeof panData.full_name === 'string') {
-    const panFullName = formatNameToTitleCase(panData.full_name.trim());
-    
-    localStorage.setItem("full_name", panFullName);
-    
-    if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
-      setMismatchFormData(prev => ({
-        ...prev,
-        full_name: panFullName
-      }));
+  useEffect(() => {
+    const panData = getStepData(CheckpointStep.PAN);
+    if (panData?.full_name && typeof panData.full_name === 'string') {
+      const panFullName = formatNameToTitleCase(panData.full_name.trim());
+      
+      localStorage.setItem("full_name", panFullName);
+      
+      if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
+        setMismatchFormData(prev => ({
+          ...prev,
+          full_name: panFullName
+        }));
+      }
     }
-  }
-}, [getStepData, mismatchFormData.full_name]);
+  }, [getStepData, mismatchFormData.full_name]);
 
   // Check Aadhaar completion status and show toast
   useEffect(() => {
@@ -361,6 +403,10 @@ useEffect(() => {
           cleanupPolling();
           
           if (isComponentMounted.current) {
+            // Clean up storage
+            localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.SESSION_URL);
+            localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.POPUP_FAILED);
+            
             toast.success("Aadhaar verification completed successfully!");
             
             // Clean up the popup window
@@ -414,7 +460,7 @@ useEffect(() => {
     }, 7 * 60 * 1000);
   };
 
-  // Combined DigiLocker initialization and popup opening
+  // Enhanced DigiLocker handler with popup blocking detection
   const handleDigilockerClick = async () => {
     // If already completed, just proceed to next step
     if (isCompleted || isStepCompleted(CheckpointStep.AADHAAR)) {
@@ -465,6 +511,10 @@ useEffect(() => {
         if (response.data?.data?.uri) {
           urlToOpen = response.data.data.uri;
           setDigilockerUrl(urlToOpen);
+          
+          // Save URL to localStorage for redirect flow
+          localStorage.setItem(DIGILOCKER_STORAGE_KEYS.SESSION_URL, urlToOpen);
+          
           setIsInitialized(true);
         } else {
           setError("Failed to initialize DigiLocker. Please try again.");
@@ -472,27 +522,21 @@ useEffect(() => {
         }
       }
 
-      // Now open the popup with the URL we have
+      // Try to open popup first
       const digilockerWindow = window.open(
         urlToOpen,
         'digilocker',
-        'width=800,height=600,scrollbars=yes,resizable=yes,location=yes,menubar=no,toolbar=no,status=no'
+        'width=500,height=600,scrollbars=yes,resizable=yes,location=yes,menubar=no,toolbar=no,status=no'
       );
 
+      // Check if popup was blocked
       if (!digilockerWindow || digilockerWindow.closed || typeof digilockerWindow.closed === 'undefined') {
-        // Popup was blocked, offer alternative
-        setError("Popup was blocked. Please allow popups for this site or try opening DigiLocker manually.");
-        
-        // Offer manual redirect option
-        setTimeout(() => {
-          if (confirm("Popup blocked. Would you like to open DigiLocker in this tab instead?")) {
-            window.location.href = urlToOpen;
-          }
-        }, 1000);
+        // Popup blocked - use redirect flow
+        handlePopupBlocked(urlToOpen);
         return;
       }
 
-      // Store reference to the window
+      // Popup opened successfully
       digilockerWindowRef.current = digilockerWindow;
 
       // Clear any existing window check interval
@@ -566,14 +610,34 @@ useEffect(() => {
     }
   };
 
+  // Handle popup blocking - redirect flow
+  const handlePopupBlocked = (urlToOpen: string) => {
+    // Mark as popup failed and set redirect flow
+    localStorage.setItem(DIGILOCKER_STORAGE_KEYS.POPUP_FAILED, 'true');
+    localStorage.setItem(DIGILOCKER_STORAGE_KEYS.REDIRECT_FLOW, 'true');
+    
+    // Show user-friendly message
+    toast.info("Opening DigiLocker in this tab...", {
+      duration: 2000
+    });
+    
+    // Wait a moment then redirect
+    setTimeout(() => {
+      window.location.href = urlToOpen;
+    }, 1500);
+  };
+
   const handleRetry = () => {
     setError(null);
     setDigilockerUrl('');
     setIsInitialized(false);
     
-    // Clean up everything
+    // Clean up everything including storage
     cleanupPolling();
     cleanupPopup();
+    localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.SESSION_URL);
+    localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.POPUP_FAILED);
+    localStorage.removeItem(DIGILOCKER_STORAGE_KEYS.REDIRECT_FLOW);
   };
 
   // Handle Aadhaar mismatch form submission
@@ -657,47 +721,54 @@ useEffect(() => {
     }
   };
 
-const handleInputChange = (field: string, value: string) => {
-  if (field === 'dob') {
-    // Validate age when date is selected
-    const selectedDate = new Date(value);
-    const today = new Date();
-    const age = today.getFullYear() - selectedDate.getFullYear();
-    const monthDiff = today.getMonth() - selectedDate.getMonth();
-    
-    // Check if they haven't had their birthday this year yet
-    const hasHadBirthdayThisYear = monthDiff > 0 || (monthDiff === 0 && today.getDate() >= selectedDate.getDate());
-    const actualAge = hasHadBirthdayThisYear ? age : age - 1;
-    
-    if (actualAge < 18) {
-      toast.error("You must be at least 18 years old to proceed");
-      return; // Don't update the state with invalid date
+  const handleInputChange = (field: string, value: string) => {
+    if (field === 'dob') {
+      // Validate age when date is selected
+      const selectedDate = new Date(value);
+      const today = new Date();
+      const age = today.getFullYear() - selectedDate.getFullYear();
+      const monthDiff = today.getMonth() - selectedDate.getMonth();
+      
+      // Check if they haven't had their birthday this year yet
+      const hasHadBirthdayThisYear = monthDiff > 0 || (monthDiff === 0 && today.getDate() >= selectedDate.getDate());
+      const actualAge = hasHadBirthdayThisYear ? age : age - 1;
+      
+      if (actualAge < 18) {
+        toast.error("You must be at least 18 years old to proceed");
+        return; // Don't update the state with invalid date
+      }
+      
+      if (selectedDate > today) {
+        toast.error("Date of birth cannot be in the future");
+        return; // Don't update the state with future date
+      }
     }
     
-    if (selectedDate > today) {
-      toast.error("Date of birth cannot be in the future");
-      return; // Don't update the state with future date
-    }
-  }
-  
-  setMismatchFormData(prev => ({
-    ...prev,
-    [field]: field === 'full_name' ? formatNameToTitleCase(value) : value
-  }));
-};
+    setMismatchFormData(prev => ({
+      ...prev,
+      [field]: field === 'full_name' ? formatNameToTitleCase(value) : value
+    }));
+  };
+
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.AADHAAR);
 
   // Show initialization loading only when actively loading
   if (isLoading && !shouldShowCompletedState) {
+    const loadingMessage = isRedirectFlow 
+      ? "Checking DigiLocker verification status..." 
+      : "Setting up DigiLocker session...";
+      
     return (
       <div className="mx-auto -mt-28 sm:mt-0 pt-20">
         <FormHeading
           title="Verify Aadhaar (DigiLocker)"
-          description="Setting up DigiLocker session..."
+          description={loadingMessage}
         />
         <div className="flex items-center justify-center h-40">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div>
-          <span className="ml-3 text-gray-600">Initializing DigiLocker...</span>
+          <span className="ml-3 text-gray-600">
+            {isRedirectFlow ? "Checking status..." : "Initializing DigiLocker..."}
+          </span>
         </div>
       </div>
     );
@@ -742,7 +813,6 @@ const handleInputChange = (field: string, value: string) => {
               min={getDateRestrictions().min}
               max={getDateRestrictions().max}
             />
-            
           </div>
 
           <Button
@@ -819,7 +889,7 @@ const handleInputChange = (field: string, value: string) => {
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <div>
+          <div className="hidden lg:block">
             <h3 className="text-base sm:text-sm md:text-base font-semibold text-blue-800 mb-1">
               Benefits of DigiLocker
             </h3>
@@ -862,7 +932,7 @@ const handleInputChange = (field: string, value: string) => {
         <p>
           {shouldShowCompletedState 
             ? "Aadhaar verification completed. Click Continue to proceed to the next step."
-            : "Clicking the button will open DigiLocker in a new window. Complete the process there and this page will automatically proceed to the next step."
+            : "Clicking the button will open DigiLocker. Complete the process and this page will automatically proceed to the next step."
           }
         </p>
       </div>
