@@ -6,6 +6,14 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 
+
+const formatNameToTitleCase = (name: string): string => {
+  return name
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
 interface AadhaarVerificationProps {
   onNext: () => void;
   initialData?: unknown;
@@ -23,7 +31,8 @@ const getFullNameFromStorage = () => {
   
   for (const source of sources) {
     if (source && source.trim()) {
-      return source.trim();
+      // Format the name to title case before returning
+      return formatNameToTitleCase(source.trim());
     }
   }
   return "";
@@ -99,53 +108,54 @@ const AadhaarVerification = ({
   }, [currentStep, isLoading]);
 
   // Enhanced full_name monitoring
-  useEffect(() => {
-    const checkForFullName = () => {
-      const currentFullName = getFullNameFromStorage();
-      if (currentFullName && currentFullName !== mismatchFormData.full_name) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: currentFullName
-        }));
-      }
-    };
+useEffect(() => {
+  const checkForFullName = () => {
+    const currentFullName = getFullNameFromStorage();
+    if (currentFullName && currentFullName !== mismatchFormData.full_name) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: formatNameToTitleCase(currentFullName)
+      }));
+    }
+  };
 
-    checkForFullName();
-    const fullNameCheckInterval = setInterval(checkForFullName, 1000);
+  checkForFullName();
+  const fullNameCheckInterval = setInterval(checkForFullName, 1000);
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'full_name' && e.newValue) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: e.newValue || ""
-        }));
-      }
-    };
+  const handleStorageChange = (e: StorageEvent) => {
+    if (e.key === 'full_name' && e.newValue) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: formatNameToTitleCase(e.newValue || "")
+      }));
+    }
+  };
 
-    window.addEventListener('storage', handleStorageChange);
+  window.addEventListener('storage', handleStorageChange);
 
-    return () => {
-      clearInterval(fullNameCheckInterval);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [mismatchFormData.full_name]);
+  return () => {
+    clearInterval(fullNameCheckInterval);
+    window.removeEventListener('storage', handleStorageChange);
+  };
+}, [mismatchFormData.full_name]);
+
 
   // Get full_name from PAN step data
-  useEffect(() => {
-    const panData = getStepData(CheckpointStep.PAN);
-    if (panData?.full_name && typeof panData.full_name === 'string') {
-      const panFullName = panData.full_name.trim();
-      
-      localStorage.setItem("full_name", panFullName);
-      
-      if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
-        setMismatchFormData(prev => ({
-          ...prev,
-          full_name: panFullName
-        }));
-      }
+useEffect(() => {
+  const panData = getStepData(CheckpointStep.PAN);
+  if (panData?.full_name && typeof panData.full_name === 'string') {
+    const panFullName = formatNameToTitleCase(panData.full_name.trim());
+    
+    localStorage.setItem("full_name", panFullName);
+    
+    if (!mismatchFormData.full_name || mismatchFormData.full_name !== panFullName) {
+      setMismatchFormData(prev => ({
+        ...prev,
+        full_name: panFullName
+      }));
     }
-  }, [getStepData, mismatchFormData.full_name]);
+  }
+}, [getStepData, mismatchFormData.full_name]);
 
   // Check Aadhaar completion status and show toast
   useEffect(() => {
@@ -619,12 +629,12 @@ const AadhaarVerification = ({
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    setMismatchFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
+const handleInputChange = (field: string, value: string) => {
+  setMismatchFormData(prev => ({
+    ...prev,
+    [field]: field === 'full_name' ? formatNameToTitleCase(value) : value
+  }));
+};
 
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.AADHAAR);
 
