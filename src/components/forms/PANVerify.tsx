@@ -56,6 +56,29 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
     }
   }, [initialData, isCompleted]);
 
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        // Don't handle if we're in an input field (let individual handlers manage that)
+        const activeElement = document.activeElement;
+        if (activeElement?.tagName === 'INPUT') {
+          return;
+        }
+
+        e.preventDefault();
+        
+        // If button is not disabled, trigger submit
+        if (!isButtonDisabled()) {
+          handleSubmit();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [panNumber, isLoading]);
+
   const validatePan = (pan: string) => {
     return /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan);
   };

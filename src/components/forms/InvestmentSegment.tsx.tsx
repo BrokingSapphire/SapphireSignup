@@ -89,6 +89,23 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
     checkIncomeProofStatus();
   }, []);
 
+  // Global Enter key handler
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        
+        // If button is not disabled, trigger submit
+        if (!isButtonDisabled()) {
+          handleSubmitSegments();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [selectedSegments, isLoading, hasAcceptedRisk]);
+
   const handleSegmentClick = (segmentId: string) => {
     if (segmentId === "Cash") return;
 
