@@ -9,15 +9,13 @@ import { toast } from "sonner";
 const getDateRestrictions = () => {
   const today = new Date();
   const currentYear = today.getFullYear();
-  const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
-  const currentDay = String(today.getDate()).padStart(2, '0');
+  // const currentMonth = String(today.getMonth() + 1).padStart(2, '0');
+  // const currentDay = String(today.getDate()).padStart(2, '0');
   
   // Maximum date: today (no future dates)
-  const maxDate = `${currentYear}-${currentMonth}-${currentDay}`;
   
   // Minimum date: 18 years ago from today
   const minYear = currentYear - 100; // Allow up to 100 years old
-  const maxAgeYear = currentYear - 18; // Must be at least 18 years old
   const minDate = `${minYear}-01-01`;
   
   // Calculate the exact date 18 years ago
@@ -713,20 +711,6 @@ const handleInputChange = (field: string, value: string) => {
           title={"Additional Verification Required"}
           description={"We detected a mismatch between your PAN and Aadhaar details. Please provide additional information to complete verification."}
         />
-
-        <div className="mb-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-          <div className="flex items-start">
-            <svg className="w-6 h-6 text-yellow-600 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-            </svg>
-            <div>
-              <h3 className="font-semibold text-yellow-800 mb-1">Aadhaar Mismatch Detected</h3>
-              <p className="text-yellow-700 text-sm mb-2">
-                The Aadhaar number linked to your PAN doesn&apos;t match the one from DigiLocker verification.
-              </p>
-            </div>
-          </div>
-        </div>
 
         <form onSubmit={handleMismatchSubmit} className="space-y-4">
           <div>

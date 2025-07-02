@@ -314,6 +314,48 @@ const EmailVerification = ({ onNext, initialData, isCompleted }: EmailVerificati
     };
   }, [resendTimer, isCompleted]);
 
+  // Global Enter key handler for Get OTP and Resend OTP
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Enter") {
+        // Don't handle if we're in an input field (let individual handlers manage that)
+        const activeElement = document.activeElement;
+        if (activeElement?.tagName === 'INPUT') {
+          return;
+        }
+
+        e.preventDefault();
+        
+        // If completed, continue to next step
+        if (isCompleted) {
+          buttonRef.current?.click();
+          return;
+        }
+
+        // If on OTP screen
+        if (showOTP && !showChangeEmail) {
+          const isOtpComplete = otp.every((digit) => digit !== "");
+          
+          // If OTP is complete, verify it
+          if (isOtpComplete) {
+            buttonRef.current?.click();
+          }
+          // If OTP is not complete but resend is available, resend OTP
+          else if (resendTimer === 0 && !isResendingOTP) {
+            handleResendOTP();
+          }
+        }
+        // If not on OTP screen or changing email, send OTP
+        else {
+          buttonRef.current?.click();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleGlobalKeyDown);
+    return () => document.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [showOTP, showChangeEmail, isCompleted, otp, resendTimer, isResendingOTP]);
+
   const handleButtonClick = async () => {
     // If completed, go to next step
     if (isCompleted) {
