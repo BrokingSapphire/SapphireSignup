@@ -1,9 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output: "standalone",
   images: {
-    domains: ['signup.sapphirebroking.com'],
+    domains: ["signup.sapphirebroking.com"],
+  },
+  compiler: {
+    removeConsole: {
+      exclude: ["error", "warn"], 
+    },
   },
 };
 
