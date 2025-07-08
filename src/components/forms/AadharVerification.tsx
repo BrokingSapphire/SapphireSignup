@@ -871,7 +871,7 @@ const AadhaarVerification = ({
           </div>
         </div>
 
-        <div className="flex items-start">
+        <div className="hidden lg:flex items-start">
           <div className="bg-blue-100 p-2 rounded-full mr-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -889,7 +889,7 @@ const AadhaarVerification = ({
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
           </div>
-          <div className="hidden lg:block">
+          <div className="">
             <h3 className="text-base sm:text-sm md:text-base font-semibold text-blue-800 mb-1">
               Benefits of DigiLocker
             </h3>

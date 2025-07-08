@@ -122,7 +122,8 @@ const SignatureQrCode: React.FC<SignatureQrCodeProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // QR code points to sapphirebroking.com with UUID as parameter
-  const qrCodeUrl = `https://sapphirebroking.com/qr-signature?uid=${signatureUid}`;
+  const authToken = Cookies.get('authToken');
+  const qrCodeUrl = `https://sapphirebroking.com/qr-signature?uid=${signatureUid}&authToken=${encodeURIComponent(authToken ?? '')}`;
 
   // Countdown timer
   useEffect(() => {
