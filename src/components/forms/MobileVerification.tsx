@@ -418,12 +418,20 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
   };
 
   // Handle Enter key press in mobile input
-  const handleMobileKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      buttonRef.current?.click();
+const handleMobileKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    
+    // Explicitly handle the action based on current state
+    if (isCompleted) {
+      onNext();
+    } else if (showOTP && otp.every((digit) => digit !== "")) {
+      handleVerifyOTP();
+    } else if (!showOTP || showChangeMobile) {
+      handleSendOTP();
     }
-  };
+  }
+};
 
   // Get button text based on current state
   const getButtonText = () => {

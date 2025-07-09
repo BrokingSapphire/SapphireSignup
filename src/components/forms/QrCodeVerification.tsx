@@ -121,7 +121,7 @@ const QrCodeVerification: React.FC<QrCodeVerificationProps> = ({
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // QR code points to sapphirebroking.com with UUID as parameter
-  const qrCodeUrl = `https://sapphirebroking.com/qr-ipv?uid=${ipvUid}`;
+  const qrCodeUrl = `https://signup.sapphirebroking.com/qr-ipv?uid=${ipvUid}`;
 
   // Countdown timer
   useEffect(() => {

@@ -52,6 +52,91 @@ interface IPVVerificationProps {
   isCompleted?: boolean;
 }
 
+// Simple QR Code component
+interface QrCodeDisplayProps {
+  value: string;
+  size: number;
+}
+
+const QrCodeDisplay: React.FC<QrCodeDisplayProps> = ({ value, size }) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [qrDataUrl, setQrDataUrl] = useState<string>("");
+
+  useEffect(() => {
+    const generateQR = async () => {
+      try {
+        // Use dynamic import for qrcode library
+        const QRCode = (await import('qrcode')).default;
+        
+        const dataUrl = await QRCode.toDataURL(value, {
+          width: size,
+          margin: 2,
+          color: {
+            dark: '#000000',
+            light: '#ffffff'
+          },
+          errorCorrectionLevel: 'M'
+        });
+        
+        setQrDataUrl(dataUrl);
+      } catch (error) {
+        console.error('Error generating QR code:', error);
+        
+        // Fallback: Create a simple placeholder
+        if (canvasRef.current) {
+          const canvas = canvasRef.current;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            canvas.width = size;
+            canvas.height = size;
+            
+            // Draw a simple placeholder
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, size, size);
+            ctx.fillStyle = '#000000';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('QR Code', size / 2, size / 2 - 10);
+            ctx.fillText('Loading...', size / 2, size / 2 + 10);
+            
+            setQrDataUrl(canvas.toDataURL());
+          }
+        }
+      }
+    };
+
+    if (value) {
+      generateQR();
+    }
+  }, [value, size]);
+
+  return (
+    <div className="qr-code-container">
+      {qrDataUrl ? (
+        <img
+          src={qrDataUrl}
+          alt="QR Code for mobile verification"
+          style={{ width: size, height: size }}
+          className="rounded"
+        />
+      ) : (
+        <div 
+          style={{ width: size, height: size }}
+          className="bg-gray-200 flex items-center justify-center rounded"
+        >
+          <span className="text-gray-500 text-sm">Generating QR...</span>
+        </div>
+      )}
+      <canvas
+        ref={canvasRef}
+        style={{ display: 'none' }}
+        width={size}
+        height={size}
+      />
+    </div>
+  );
+};
+
 // Global flag to track if completion toast has been shown in this session
 let hasShownGlobalCompletedToast = false;
 
@@ -67,19 +152,24 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const [cameraAutoStarted, setCameraAutoStarted] = useState(false);
   const [wantsToReverify, setWantsToReverify] = useState(false);
+  const [showMobileQR, setShowMobileQR] = useState(false);
   
   // Face detection states
   const [isFaceDetected, setIsFaceDetected] = useState(false);
   const [isMediaPipeLoaded, setIsMediaPipeLoaded] = useState(false);
   const [faceDetector, setFaceDetector] = useState<MediaPipeFaceDetection | null>(null);
   const [hasShownNoFaceToast, setHasShownNoFaceToast] = useState(false);
-  const [isMonitoringFace, setIsMonitoringFace] = useState(false); // New state to track if we're actively monitoring
+  const [isMonitoringFace, setIsMonitoringFace] = useState(false);
+  
+  // Mobile QR polling
+  const [isPollingForMobile, setIsPollingForMobile] = useState(false);
+  const mobilePollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const noFaceToastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
+  const authTokenValue = Cookies.get('authToken') || '';
   // Use the checkpoint hook to check for existing IPV data
   const { 
     isStepCompleted,
@@ -279,14 +369,106 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
   // Auto-start camera after initialization is complete
   useEffect(() => {
-    if (isInitialized && ipvUid && !cameraAutoStarted && (wantsToReverify || !isStepCompleted(CheckpointStep.IPV))) {
+    if (isInitialized && ipvUid && !cameraAutoStarted && (wantsToReverify || !isStepCompleted(CheckpointStep.IPV)) && !showMobileQR) {
       // Small delay to ensure everything is ready
       setTimeout(() => {
         startCamera();
         setCameraAutoStarted(true);
       }, 500);
     }
-  }, [isInitialized, ipvUid, cameraAutoStarted, wantsToReverify, isStepCompleted]);
+  }, [isInitialized, ipvUid, cameraAutoStarted, wantsToReverify, isStepCompleted, showMobileQR]);
+
+  // Mobile QR polling effect
+  useEffect(() => {
+    if (isPollingForMobile && ipvUid) {
+      startMobilePolling();
+    } else {
+      stopMobilePolling();
+    }
+
+    return () => {
+      stopMobilePolling();
+    };
+  }, [isPollingForMobile, ipvUid]);
+
+  const startMobilePolling = () => {
+    // Clear any existing polling
+    stopMobilePolling();
+    
+    const pollForCompletion = async () => {
+      try {
+        const authToken = Cookies.get('authToken');
+        if (!authToken) {
+          console.error('No auth token for mobile polling');
+          stopMobilePolling();
+          return;
+        }
+
+        // Use the existing GET IPV endpoint to check completion
+        const response = await axios.get(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv`,
+          {
+            headers: {
+              Authorization: `Bearer ${authToken}`
+            }
+          }
+        );
+
+        // If we get a successful response with data, IPV is completed
+        if (response.status === 200 && response.data?.data?.url) {
+          stopMobilePolling();
+          setShowMobileQR(false);
+          setIsPollingForMobile(false);
+          
+          toast.success("Mobile verification completed successfully!");
+          
+          // Refetch IPV step to update the hook
+          refetchStep(CheckpointStep.IPV);
+          
+          // Auto-advance after a short delay
+          setTimeout(() => {
+            onNext();
+          }, 1000);
+        }
+        
+      } catch (err: unknown) {
+        const error = err as { response?: { status?: number; data?: { message?: string } } };
+        
+        if (error.response?.status === 204) {
+          // IPV not uploaded yet - continue polling
+          return;
+        } else if (error.response?.status === 401) {
+          // Session expired
+          stopMobilePolling();
+          setError("Session expired. Please restart the process.");
+        } else {
+          // Other errors - continue polling silently
+          console.warn('Mobile polling error:', err);
+        }
+      }
+    };
+
+    // Start polling immediately
+    pollForCompletion();
+    
+    // Set up interval polling every 3 seconds
+    mobilePollingIntervalRef.current = setInterval(pollForCompletion, 3000);
+
+    // Stop polling after 10 minutes (timeout)
+    setTimeout(() => {
+      if (mobilePollingIntervalRef.current) {
+        stopMobilePolling();
+        toast.warning("Mobile verification session timed out. Please try again.");
+      }
+    }, 10 * 60 * 1000);
+  };
+
+  const stopMobilePolling = () => {
+    if (mobilePollingIntervalRef.current) {
+      clearInterval(mobilePollingIntervalRef.current);
+      mobilePollingIntervalRef.current = null;
+    }
+  };
 
   const initializeIPV = async () => {
     // Prevent multiple simultaneous calls
@@ -412,10 +594,31 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     }
   };
 
+  const handleMobileQRClick = () => {
+    if (!ipvUid) {
+      toast.error("Please wait for verification to initialize.");
+      return;
+    }
+
+    // Stop camera if running
+    stopCamera();
+    
+    // Show mobile QR and start polling
+    setShowMobileQR(true);
+    setIsPollingForMobile(true);
+    
+    toast.info("Scan the QR code with your phone to continue verification.");
+  };
+
   const isButtonDisabled = () => {
     // If showing completed state, always allow continue
     if (shouldShowCompletedState) {
       return false;
+    }
+    
+    // If showing mobile QR, disable button
+    if (showMobileQR) {
+      return true;
     }
     
     // If showing camera, require face detection and monitoring must be active
@@ -527,6 +730,11 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setWantsToReverify(true);
     setHasShownNoFaceToast(false);
     setIsMonitoringFace(false);
+    setShowMobileQR(false);
+    setIsPollingForMobile(false);
+    
+    // Stop mobile polling
+    stopMobilePolling();
     
     // Clear any existing timeouts
     if (noFaceToastTimeoutRef.current) {
@@ -544,6 +752,11 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     setIsFaceDetected(false);
     setHasShownNoFaceToast(false);
     setIsMonitoringFace(false);
+    setShowMobileQR(false);
+    setIsPollingForMobile(false);
+    
+    // Stop mobile polling
+    stopMobilePolling();
     
     // Clear any existing timeouts
     if (noFaceToastTimeoutRef.current) {
@@ -577,6 +790,17 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     
     // Restart camera
     setTimeout(() => startCamera(), 100);
+  };
+
+  const handleBackFromMobileQR = () => {
+    setShowMobileQR(false);
+    setIsPollingForMobile(false);
+    stopMobilePolling();
+    
+    // Restart camera if not completed
+    if (!isStepCompleted(CheckpointStep.IPV)) {
+      setTimeout(() => startCamera(), 100);
+    }
   };
 
   // Initialize camera when showCamera becomes true
@@ -661,6 +885,9 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         }
       }
       
+      // Stop mobile polling
+      stopMobilePolling();
+      
       // Clear timeouts
       if (noFaceToastTimeoutRef.current) {
         clearTimeout(noFaceToastTimeoutRef.current);
@@ -675,10 +902,10 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
     };
   }, []);
 
-  const shouldShowCamera = ipvUid && (wantsToReverify || !isStepCompleted(CheckpointStep.IPV));
+  const shouldShowCamera = ipvUid && (wantsToReverify || !isStepCompleted(CheckpointStep.IPV)) && !showMobileQR;
   const shouldShowCompletedState = isStepCompleted(CheckpointStep.IPV) && !wantsToReverify;
 
-  // Always show the same UI - whether fresh or completed
+  // Show QR Code verification
   if (showQrCode && ipvUid) {
     return (
       <QrCodeVerification
@@ -686,6 +913,59 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
         onComplete={onNext}
         ipvUid={ipvUid}
       />
+    );
+  }
+
+  // Show mobile QR view
+  if (showMobileQR && ipvUid) {
+    return (
+      <div className="mx-auto -mt-28 sm:mt-16">
+        <FormHeading
+          title="Video Verification (IPV)"
+          description="Scan the QR code with your phone to complete verification."
+        />
+
+        <div className="mb-6">
+          <div className="border-2 border-dashed h-[240px] w-[80%] mx-auto border-gray-300 rounded-lg flex flex-col items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="p-4 bg-white rounded-lg shadow-md">
+                  <div id="mobile-qr-code" className="w-48 h-48 flex items-center justify-center">
+                    <QrCodeDisplay 
+                      value={`https://signup.sapphirebroking.com/qr-ipv?uid=${ipvUid}&authToken=${authTokenValue}`}
+                      size={192}
+                    />
+                  </div>
+                </div>
+              </div>
+              <p className="text-gray-600 font-medium">Scan with your phone camera</p>
+              <p className="text-sm text-gray-500">
+                This will open a mobile-friendly verification page
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="text-center mb-6">
+          {isPollingForMobile && (
+            <div className="mb-4">
+              <div className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
+                Waiting for mobile verification...
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex justify-center">
+          <Button
+            onClick={handleBackFromMobileQR}
+            variant="outline"
+            className="py-6 w-full"
+          >
+            Back to Camera
+          </Button>
+        </div>
+      </div>
     );
   }
 
@@ -842,6 +1122,18 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
           </div>
         )}
       </div>
+
+      {/* Having trouble text - show only when not completed and not showing mobile QR */}
+      {!shouldShowCompletedState && !showMobileQR && ipvUid && (
+        <div className="text-center mb-2">
+          <button
+            onClick={handleMobileQRClick}
+            className="text-blue-600 hover:text-blue-800 text-sm underline"
+          >
+            Having trouble? Upload image with phone
+          </button>
+        </div>
+      )}
 
       <Button
         onClick={handleSubmit}
