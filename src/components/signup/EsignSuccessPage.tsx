@@ -1,6 +1,5 @@
 'use client'
 import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
 
 const EsignSuccessPage: React.FC = () => {
   const [countdown, setCountdown] = useState(4);
@@ -58,17 +57,6 @@ const EsignSuccessPage: React.FC = () => {
           </div>
         </div>
 
-        {/* eSign Image */}
-        <div className="flex justify-center mb-6">
-          <Image 
-            width={80} 
-            height={64} 
-            src='https://signup.sapphirebroking.com/e-sign.png' 
-            alt="eSign Completed" 
-            className="max-w-full h-auto rotate-90" 
-          />
-        </div>
-
         {/* Success Message */}
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
           eSign Completed Successfully!
@@ -91,7 +79,7 @@ const EsignSuccessPage: React.FC = () => {
         {/* Manual Close Button */}
         <button
           onClick={handleClose}
-          className="w-full py-3 px-4 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
+          className="w-full py-3 px-4 bg-green-600 text-white rounded-lg hover:bg-gray-800 transition-colors font-medium"
         >
           {canClose ? 'Close Window' : 'Close Tab/Window'}
         </button>
