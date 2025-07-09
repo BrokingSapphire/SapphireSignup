@@ -12,8 +12,8 @@ const DIGILOCKER_STORAGE_KEYS = {
 
 const DigilockerSuccessPage: React.FC = () => {
   const [countdown, setCountdown] = useState(5);
-  const [isPopup, setIsPopup] = useState(false);
-  const [isRedirectFlow, setIsRedirectFlow] = useState(false);
+  const [, setIsPopup] = useState(false);
+  const [, setIsRedirectFlow] = useState(false);
   const [flowType, setFlowType] = useState<'popup' | 'redirect' | 'unknown'>('unknown');
   const router = useRouter();
 
@@ -203,7 +203,7 @@ const DigilockerSuccessPage: React.FC = () => {
     
     // For unknown flows, redirect to main signup page
     try {
-      const signupUrl = window.location.origin + '/signup'; // Adjust this path as needed
+      const signupUrl = window.location.origin + '/';
       window.location.href = signupUrl;
     } catch (error) {
       console.error('Error in fallback redirect:', error);
@@ -283,13 +283,6 @@ const DigilockerSuccessPage: React.FC = () => {
         <p className="text-gray-600 mb-6">
           {uiText.description}
         </p>
-
-        {/* Flow Type Indicator (for debugging - remove in production) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-4 p-2 bg-gray-100 rounded text-sm text-gray-600">
-            Flow Type: {flowType} | Popup: {isPopup ? 'Yes' : 'No'} | Redirect: {isRedirectFlow ? 'Yes' : 'No'}
-          </div>
-        )}
 
         {/* Countdown */}
         <div className="mb-6">
