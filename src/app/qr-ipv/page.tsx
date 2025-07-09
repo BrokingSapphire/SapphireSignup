@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from "react";
-import { Camera, Upload } from "lucide-react";
+import { Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
