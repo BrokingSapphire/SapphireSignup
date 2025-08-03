@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     title: "Signup | Sapphire Broking: Smarter Trading, Expert Insights",
     description:
       "Create your Sapphire Broking account and access a next-generation trading experience. Get expert recommendations, real-time market alerts, and advanced tools for smarter trading decisions. Ideal for beginners and experienced investors seeking seamless execution and deep market insights.",
-    url: "https://sapphirebroking.com/signup",
+    url: "https://signup.sapphirebroking.com",
     images: [{ url: "https://www.sapphirebroking.com/logo-white.svg" }],
     type: "website",
   },
