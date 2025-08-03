@@ -5,14 +5,14 @@ import React from "react";
 export const metadata: Metadata = {
   title: "Signup | Sapphire Broking: Smarter Trading, Expert Insights",
   description:
-    "Sapphire has a next-generation trading platform designed for investors seeking expert insights and advanced trading tools. Get professional trade recommendations and stay updated with real-time corporate announcements from all listed entities. Our high-tech features ensure seamless execution, empowering both beginners and experienced traders to make well-informed market decisions.",
+    "Join Sapphire Broking to access a powerful, next-gen trading platform built for smart investors and traders. Benefit from expert recommendations, real-time BSE/NSE updates, and intelligent tools designed for both beginners and professionals. Experience seamless trade execution and in-depth market insights with Sapphire.",
   keywords:
-    "signup sapphire, login sapphire, contact sapphire, about sapphire broking, online trading platform India, stock market analysis tools, real-time market insights, professional trading recommendations, BSE NSE live updates, smart trading solutions, expert trading insights, stock market for beginners, advanced trading platform, corporate announcement tracker, investment decision tools, market intelligence platform, stock trading alerts India, seamless trade execution, next-gen trading platform, stock market education, technical analysis tools India, fundamental analysis platform, market trend analyzer, financial market insights, algorithmic trading India, trading platform comparison, best online broker India, intraday trading platform, portfolio management tools, stock screening tools India, equity research platform, investment analytics India, market data analysis, trading charts and indicators, mobile trading app India, derivatives trading platform, commodity trading solutions, forex trading tools India",
+    "signup Sapphire Broking, individual signup sapphire, open trading account India, online stock trading, expert market insights, BSE NSE real-time updates, advanced trading platform India, beginner trading tools, professional trade recommendations, corporate announcement tracker, stock trading alerts, market data analysis, trading charts India, intraday trading India, equity research platform, technical analysis India, fundamental analysis tools, smart trading solutions, next-gen trading app, portfolio management India, algorithmic trading tools, trading education India, mobile trading app India, derivatives trading, commodity trading platform, forex trading India, SEBI registered broker, stock broker India, best online broker India",
   openGraph: {
-    title: "Contact | Sapphire Broking: Smarter Trading, Expert Insights",
+    title: "Signup | Sapphire Broking: Smarter Trading, Expert Insights",
     description:
-      "Sapphire has a next-generation trading platform designed for investors seeking expert insights and advanced trading tools. Get professional trade recommendations and stay updated with real-time corporate announcements from all listed entities. Our high-tech features ensure seamless execution, empowering both beginners and experienced traders to make well-informed market decisions.",
-    url: "https://sapphirebroking.com/",
+      "Create your Sapphire Broking account and access a next-generation trading experience. Get expert recommendations, real-time market alerts, and advanced tools for smarter trading decisions. Ideal for beginners and experienced investors seeking seamless execution and deep market insights.",
+    url: "https://sapphirebroking.com/signup",
     images: [{ url: "https://www.sapphirebroking.com/logo-white.svg" }],
     type: "website",
   },
