@@ -1,21 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "../ui/button";
-import FormHeading from "./FormHeading";
+import FormHeading from "../forms/FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { getApiEndpointByType } from "@/lib/utils";
-import { usePathname } from "next/navigation";
 
 interface PANVerifyProps {
   onNext: () => void;
   initialData?: unknown;
   isCompleted?: boolean;
-  title?: string;
-  description?: string;
 }
 
-const PANVerify = ({ onNext, initialData, isCompleted, title, description }: PANVerifyProps) => {
+const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
   const [panNumber, setPanNumber] = useState("");
   const [, setFullName] = useState("");
   const [, setDob] = useState("");
@@ -25,7 +21,6 @@ const PANVerify = ({ onNext, initialData, isCompleted, title, description }: PAN
   });
   const [isLoading, setIsLoading] = useState(false);
   const [, setError] = useState<string | null>(null);
-  const pathname = usePathname();
 
   // Prefill data from initialData (API response) - always editable
   useEffect(() => {
@@ -165,10 +160,10 @@ const PANVerify = ({ onNext, initialData, isCompleted, title, description }: PAN
 
       // Call checkpoint API with PAN step
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
         {
           step: "pan",
-          pan: panNumber,
+          pan_number: panNumber,
         },
         {
           headers: {
@@ -252,25 +247,9 @@ const PANVerify = ({ onNext, initialData, isCompleted, title, description }: PAN
   // Always show the same UI, just with prefilled PAN number if completed
   return (
     <div className="mx-auto -mt-28 sm:mt-0 max-w-full px-4">
-      <FormHeading
-        title={
-          title ?? (
-            pathname === "/corporate"
-              ? "Verify Corporate PAN to Continue"
-              : pathname === "/minor"
-              ? "Verify Minor PAN to Continue"
-              : "Verify PAN to Continue"
-          )
-        }
-        description={
-          description ?? (
-            pathname === "/corporate"
-              ? "Secure your corporate identity with PAN verification."
-              : pathname === "/minor"
-              ? "Secure the minor's identity with PAN verification."
-              : "Secure your identity with PAN verification."
-          )
-        }
+       <FormHeading
+        title="Verify Guardian PAN to Continue"
+        description="Guardian's PAN is required for minor account opening."
       />
 
       <div className="mb-6">

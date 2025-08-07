@@ -8,7 +8,7 @@ import TradingAccountDetails from "../forms/TradingAccountDetails";
 import PANVerify from "../forms/PANVerify";
 import TradingAccountDetails2 from "../forms/TradingAccountDetails2";
 import IPVVerification from "../forms/IPV";
-import NomineeSelection from "../forms/NomineeSelection";
+
 import LastStepPage from "../forms/ESign";
 import CongratulationsPage from "../forms/Congratulations";
 import InvestmentSegment from "../forms/InvestmentSegment.tsx";
@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { queryClient } from "@/providers/QueryProvider";
+import GuardianPanVerify from "./GuardianPanVerify";
+import GuardianAadhar from "./GuardianAadhar";
 
 const OnboardingCarousel = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -358,6 +360,8 @@ const OnboardingCarousel = () => {
           />
         )
       },
+      // Guardian PAN verification step (after minor trading account detail)
+      
       {
         id: "trading preference",
         component: (
@@ -377,6 +381,28 @@ const OnboardingCarousel = () => {
             isCompleted={isStepCompleted(CheckpointStep.OTHER_DETAIL)}
           />
         ),
+      },
+      {
+        id: "GuardianPanVerify",
+        component: (
+          <GuardianPanVerify
+            onNext={() => handleStepCompletion(CheckpointStep.PAN)}
+            initialData={getStepData(CheckpointStep.PAN)}
+            isCompleted={isStepCompleted(CheckpointStep.PAN)}
+            
+          />
+        )
+      },
+      {
+        id: "GuardianAadhar",
+        component: (
+          <GuardianAadhar
+            onNext={() => handleStepCompletion(CheckpointStep.PAN)}
+            initialData={getStepData(CheckpointStep.PAN)}
+            isCompleted={isStepCompleted(CheckpointStep.PAN)}
+            
+          />
+        )
       },
       {
         id: "bankaccountdetails",
@@ -408,16 +434,7 @@ const OnboardingCarousel = () => {
           />
         )
       },
-      { 
-        id: "nominee", 
-        component: (
-          <NomineeSelection 
-            onNext={handleNomineeNext}
-            initialData={getStepData(CheckpointStep.ADD_NOMINEES)}
-            isCompleted={isStepCompleted(CheckpointStep.ADD_NOMINEES)}
-          />
-        )
-      },
+      
     ];
 
     // Conditionally add PAN upload component
