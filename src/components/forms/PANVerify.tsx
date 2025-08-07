@@ -5,6 +5,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
 import { getApiEndpointByType } from "@/lib/utils";
+import { usePathname } from "next/navigation";
 
 interface PANVerifyProps {
   onNext: () => void;
@@ -22,6 +23,7 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [, setError] = useState<string | null>(null);
+  const pathname = usePathname();
 
   // Prefill data from initialData (API response) - always editable
   useEffect(() => {
@@ -249,8 +251,20 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
   return (
     <div className="mx-auto -mt-28 sm:mt-0 max-w-full px-4">
       <FormHeading
-        title={"Verify PAN to Continue"}
-        description={"Secure your identity with PAN verification."}
+        title={
+          pathname === "/corporate"
+            ? "Verify Corporate PAN to Continue"
+            : pathname === "/minor"
+            ? "Verify Minor PAN to Continue"
+            : "Verify PAN to Continue"
+        }
+        description={
+          pathname === "/corporate"
+            ? "Secure your corporate identity with PAN verification."
+            : pathname === "/minor"
+            ? "Secure the minor's identity with PAN verification."
+            : "Secure your identity with PAN verification."
+        }
       />
 
       <div className="mb-6">
