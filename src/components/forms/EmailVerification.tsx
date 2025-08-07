@@ -4,7 +4,7 @@ import axios, { AxiosError } from "axios";
 import FormHeading from "./FormHeading";
 import { useAuthToken } from "@/hooks/useCheckpoint";
 import { toast } from "sonner";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 // Declare global grecaptcha from Google's CDN
 declare global {
@@ -384,7 +384,7 @@ const EmailVerification = ({ onNext, initialData, isCompleted }: EmailVerificati
 
     try {
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/verify-otp`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('verifyOtp')}`,
         {
           type: "email",
           email: email,
@@ -447,7 +447,7 @@ const EmailVerification = ({ onNext, initialData, isCompleted }: EmailVerificati
 
     try {
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('requestOtp')}`,
         {
           type: "email",
           email: email,
@@ -508,7 +508,7 @@ const EmailVerification = ({ onNext, initialData, isCompleted }: EmailVerificati
 
     try {
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('requestOtp')}`,
         {
           type: "email",
           email: email,

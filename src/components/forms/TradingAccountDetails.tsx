@@ -3,7 +3,7 @@ import { Button } from "../ui/button";
 import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface TradingAccountDetailsProps {
   onNext: () => void;
@@ -94,11 +94,11 @@ const TradingAccountDetails: React.FC<TradingAccountDetailsProps> = ({
       try {
         const token = Cookies.get('authToken');
         const response = await axios.get(
-          getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/pan`),
+          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('panCheckpoint')}`,
           {
             headers: {
-              'Authorization': `Bearer ${token}`,
-            }
+              Authorization: `Bearer ${token}`,
+            },
           }
         );
         
@@ -219,7 +219,7 @@ const TradingAccountDetails: React.FC<TradingAccountDetailsProps> = ({
     
     try {
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "user_detail",
           father_spouse_name: formattedData.fatherSpouseName.trim(),

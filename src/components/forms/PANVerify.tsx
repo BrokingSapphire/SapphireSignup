@@ -4,7 +4,7 @@ import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface PANVerifyProps {
   onNext: () => void;
@@ -161,10 +161,10 @@ const PANVerify = ({ onNext, initialData, isCompleted }: PANVerifyProps) => {
 
       // Call checkpoint API with PAN step
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "pan",
-          pan_number: panNumber,
+          pan: panNumber,
         },
         {
           headers: {

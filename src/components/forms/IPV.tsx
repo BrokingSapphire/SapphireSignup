@@ -8,7 +8,7 @@ import axios from "axios";
 import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 // MediaPipe Types
 interface MediaPipeResults {
@@ -407,7 +407,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
         // Use the existing GET IPV endpoint to check completion
         const response = await axios.get(
-          getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv`),
+          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('ipv')}`,
           {
             headers: {
               Authorization: `Bearer ${authToken}`
@@ -489,15 +489,9 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
       // Use the correct endpoint for IPV initialization
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "ipv"
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`
-          }
         }
       );
 
@@ -668,7 +662,7 @@ const IPVVerification: React.FC<IPVVerificationProps> = ({
 
       // Use the correct PUT endpoint for IPV upload
       await axios.put(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv/${ipvUid}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('ipvWithId')}/${ipvUid}`,
         formData,
         {
           headers: {

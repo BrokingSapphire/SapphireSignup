@@ -5,7 +5,7 @@ import FormHeading from "./FormHeading";
 import axios from "axios";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 // Define QRCode component interface
 interface QRCodeProps {
@@ -163,11 +163,11 @@ const SignatureQrCode: React.FC<SignatureQrCodeProps> = ({
 
       // Use your existing getSignature endpoint
       const response = await axios.get(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/signature`),
-        { 
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('signature')}`,
+        {
           headers: {
-            Authorization: `Bearer ${authToken}`
-          }
+            Authorization: `Bearer ${authToken}`,
+          },
         }
       );
 

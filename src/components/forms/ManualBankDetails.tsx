@@ -4,7 +4,7 @@ import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface ManualBankDetailsProps {
   onNext: () => void;
@@ -158,7 +158,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       
       // Call your backend IFSC validation API
       const response = await axios.post<BackendIFSCResponse>(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/validate-ifsc`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('validateIfsc')}`,
         {
           ifsc_code: ifscCode
         },
@@ -559,7 +559,7 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       console.log("[MANUAL] Penny drop request data:", requestData);
       
       const response = await axios.post<PennyDropResponse>(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         requestData,
         {
           headers: {
@@ -705,8 +705,10 @@ const ManualBankDetails: React.FC<ManualBankDetailsProps> = ({
       toast.info("Finalizing bank verification...");
       
       const response = await axios.post<CompleteBankValidationResponse>(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
-        { step: "complete_bank_validation" },
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+        {
+          step: "complete_bank_validation",
+        },
         {
           headers: {
             "Content-Type": "application/json",

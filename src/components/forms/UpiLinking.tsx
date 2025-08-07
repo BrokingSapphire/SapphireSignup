@@ -7,7 +7,7 @@ import axios from "axios";
 import QRCode from "qrcode";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface UpiLinkingProps {
   onNext: () => void;
@@ -155,7 +155,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       
       console.log('[UPI] Sending bank_validation_start request...');
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "bank_validation_start",
           validation_type: "upi"
@@ -224,7 +224,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       }
       
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "bank_validation",
           validation_type: "upi"
@@ -405,7 +405,7 @@ const UpiLinking: React.FC<UpiLinkingProps> = ({
       console.log('[UPI] Names matched! Calling complete_upi_validation API...');
       
       const completionResponse = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         { step: 'complete_upi_validation' },
         {
           headers: {

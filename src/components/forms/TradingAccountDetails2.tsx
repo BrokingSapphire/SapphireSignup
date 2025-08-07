@@ -3,7 +3,7 @@ import { Button } from "../ui/button";
 import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
-import { getApiEndpoint } from "@/lib/utils";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface TradingAccountDetails2Props {
   onNext: () => void;
@@ -224,7 +224,7 @@ const TradingAccountDetails2: React.FC<TradingAccountDetails2Props> = ({
 
     try {
       const response = await axios.post(
-        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "other_detail",
           occupation: mapOccupationToApi(occupation),
