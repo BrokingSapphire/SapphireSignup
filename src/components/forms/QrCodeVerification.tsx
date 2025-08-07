@@ -5,6 +5,7 @@ import FormHeading from "./FormHeading";
 import axios from "axios";
 import { toast } from "sonner";
 import Cookies from "js-cookie";
+import { getApiEndpoint } from "@/lib/utils";
 
 // Define QRCode component interface since we're not importing it
 interface QRCodeProps {
@@ -160,7 +161,7 @@ const QrCodeVerification: React.FC<QrCodeVerificationProps> = ({
 
       // Use your existing IPV endpoint
       const response = await axios.get(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/ipv`),
         { 
           headers: {
             Authorization: `Bearer ${authToken}`

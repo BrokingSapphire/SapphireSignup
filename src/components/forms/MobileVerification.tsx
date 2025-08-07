@@ -4,6 +4,7 @@ import FormHeading from "./FormHeading";
 import axios, { AxiosError } from "axios";
 import { useAuthToken } from "@/hooks/useCheckpoint";
 import { toast } from "sonner";
+import { getApiEndpoint } from "@/lib/utils";
 
 interface MobileVerificationProps {
   onNext: () => void;
@@ -214,7 +215,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/verify-otp`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/verify-otp`),
         {
           type: "phone",
           phone: mobileNumber,
@@ -281,7 +282,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`),
         {
           type: "phone",
           email: currentEmail,
@@ -342,7 +343,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`),
         {
           type: "phone",
           email: currentEmail,

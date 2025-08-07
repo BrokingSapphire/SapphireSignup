@@ -5,6 +5,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint'; // Adjust import path as needed
 import { Button } from "../ui/button";
+import { getApiEndpoint } from "@/lib/utils";
 
 interface NomineeSelectionProps {
   onNext: () => void;
@@ -65,7 +66,7 @@ const NomineeSelection: React.FC<NomineeSelectionProps> = ({
 
       // Send empty nominees array to backend
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "add_nominees",
           nominees: []

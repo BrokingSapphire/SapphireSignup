@@ -6,6 +6,7 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 import { Button } from "../ui/button";
+import { getApiEndpoint } from "@/lib/utils";
 
 interface SignatureComponentProps {
   onNext: () => void;
@@ -80,7 +81,7 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
 
       // Use the correct endpoint for signature initialization
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "signature"
         },

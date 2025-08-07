@@ -4,6 +4,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { Button } from "../ui/button";
+import { getApiEndpoint } from "@/lib/utils";
 
 interface NomineeManagementProps {
   onNext: () => void;
@@ -411,7 +412,7 @@ const NomineeManagement: React.FC<NomineeManagementProps> = ({
       }));
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "add_nominees",
           nominees: formattedNominees

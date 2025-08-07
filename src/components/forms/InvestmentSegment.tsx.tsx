@@ -7,6 +7,7 @@ import UploadIncomeProof from "./UploadIncomeProof";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
+import { getApiEndpoint } from "@/lib/utils";
 
 interface InvestmentSegmentData {
   segments?: string[];
@@ -68,7 +69,7 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
     const checkIncomeProofStatus = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/income-proof`,
+          getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/income-proof`),
           {
             headers: {
               Authorization: `Bearer ${Cookies.get('authToken')}`
@@ -137,7 +138,7 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "investment_segment",
           segments: selectedSegments,
@@ -226,7 +227,7 @@ const InvestmentSegment: React.FC<InvestmentSegmentProps> = ({
   const handleInitializeIncomeProof = async () => {
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "income_proof",
           income_proof_type: getDefaultIncomeProofType() // ✅ Use valid enum value

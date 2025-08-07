@@ -5,6 +5,7 @@ import axios from "axios";
 import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
+import { getApiEndpoint } from "@/lib/utils";
 
 const getDateRestrictions = () => {
   const today = new Date();
@@ -339,7 +340,7 @@ const AadhaarVerification = ({
         // Step 1: First call the POST complete API to trigger completion check
         try {
           const completeResponse = await axios.post(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+            getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
             {
               step: "aadhaar"
             },
@@ -389,7 +390,7 @@ const AadhaarVerification = ({
 
         // Step 2: Now check actual completion status using GET API (same as useCheckpoint)
         const statusResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/aadhaar`,
+          getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/aadhaar`),
           {
             headers: {
               Authorization: `Bearer ${authToken}`
@@ -494,7 +495,7 @@ const AadhaarVerification = ({
 
         // Initialize DigiLocker session
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+          getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
           {
             step: "aadhaar_uri",
             redirect: redirectUrl
@@ -667,7 +668,7 @@ const AadhaarVerification = ({
       }
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        getApiEndpoint(`${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`),
         {
           step: "aadhaar_mismatch_details",
           full_name: mismatchFormData.full_name.trim(),
