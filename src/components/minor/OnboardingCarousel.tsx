@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import LeftPanel from "../new-signup/LeftPanel";
+import LeftPanel from "./LeftPanel";
 import MobileVerification from "../forms/MobileVerification";
 import EmailVerification from "../forms/EmailVerification";
 import AadhaarVerification from "../forms/AadharVerification";
