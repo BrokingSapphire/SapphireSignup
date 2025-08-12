@@ -7,6 +7,7 @@ import Image from "next/image";
 import { toast } from "sonner";
 import axios from "axios";
 import Cookies from "js-cookie";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface BankAccountLinkingProps {
   onNext: () => void;
@@ -131,12 +132,9 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
     // If not in localStorage, try to get from PAN API
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-        { step: "pan" },
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
-          headers: {
-            Authorization: `Bearer ${Cookies.get('authToken')}`
-          }
+          step: "pan"
         }
       );
 
@@ -198,12 +196,10 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         } else {
           // Try to get from API as fallback
           const response = await axios.post(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-            { step: "bank_validation" },
+            `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
             {
-              headers: {
-                Authorization: `Bearer ${Cookies.get('authToken')}`
-              }
+              step: "bank_validation",
+              bank_data: bankData,
             }
           );
 
@@ -253,12 +249,10 @@ const BankAccountLinking: React.FC<BankAccountLinkingProps> = ({
         const completionStep = validationType === 'upi' ? 'complete_upi_validation' : 'complete_bank_validation';
         
         await axios.post(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
-          { step: completionStep },
+          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
           {
-            headers: {
-              Authorization: `Bearer ${Cookies.get('authToken')}`
-            }
+            step: "complete_bank_validation",
+            bank_data: bankData,
           }
         );
         

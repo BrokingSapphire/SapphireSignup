@@ -4,15 +4,15 @@ import LeftPanel from "./LeftPanel";
 import MobileVerification from "../forms/MobileVerification";
 import EmailVerification from "../forms/EmailVerification";
 import AadhaarVerification from "../forms/AadharVerification";
-import TradingAccountDetails from "../forms/TradingAccountDetails";
+
 import PANVerify from "../forms/PANVerify";
-import TradingAccountDetails2 from "../forms/TradingAccountDetails2";
+
 import IPVVerification from "../forms/IPV";
-import NomineeSelection from "../forms/NomineeSelection";
+
 import LastStepPage from "../forms/ESign";
 import CongratulationsPage from "../forms/Congratulations";
-import InvestmentSegment from "../forms/InvestmentSegment.tsx";
-import TradingPreferences from "../forms/TradingPreferences";
+
+
 import { ChevronDown, ChevronUp } from "lucide-react";
 import BankAccountLinking from "../forms/BankAccountLinking";
 import SignatureComponent from "../forms/Signature";
@@ -25,6 +25,8 @@ import { toast } from "sonner";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { queryClient } from "@/providers/QueryProvider";
+import GuardianPanVerify from "./GuardianPanVerify";
+import GuardianAadhar from "./GuardianAadhar";
 
 const OnboardingCarousel = () => {
   const [currentStep, setCurrentStep] = useState(0);
@@ -338,45 +340,28 @@ const OnboardingCarousel = () => {
           />
         )
       },
+      
       {
-        id: "investment segment",
+        id: "GuardianPanVerify",
         component: (
-          <InvestmentSegment 
-            onNext={handleInvestmentNext}
-            initialData={getStepData(CheckpointStep.INVESTMENT_SEGMENT) ?? undefined}
-            isCompleted={isStepCompleted(CheckpointStep.INVESTMENT_SEGMENT)}
-          />
-        ),
-      },
-      { 
-        id: "trading", 
-        component: (
-          <TradingAccountDetails 
-            onNext={() => handleStepCompletion(CheckpointStep.USER_DETAIL)}
-            initialData={getStepData(CheckpointStep.USER_DETAIL) ?? undefined}
-            isCompleted={isStepCompleted(CheckpointStep.USER_DETAIL)}
+          <GuardianPanVerify
+            onNext={() => handleStepCompletion(CheckpointStep.PAN)}
+            initialData={getStepData(CheckpointStep.PAN)}
+            isCompleted={isStepCompleted(CheckpointStep.PAN)}
+            
           />
         )
       },
       {
-        id: "trading preference",
+        id: "GuardianAadhar",
         component: (
-          <TradingPreferences 
-            onNext={() => handleStepCompletion(CheckpointStep.PERSONAL_DETAIL)}
-            initialData={getStepData(CheckpointStep.PERSONAL_DETAIL)}
-            isCompleted={isStepCompleted(CheckpointStep.PERSONAL_DETAIL)}
+          <GuardianAadhar
+            onNext={() => handleStepCompletion(CheckpointStep.PAN)}
+            initialData={getStepData(CheckpointStep.PAN)}
+            isCompleted={isStepCompleted(CheckpointStep.PAN)}
+            
           />
-        ),
-      },
-      {
-        id: "trading2",
-        component: (
-          <TradingAccountDetails2 
-            onNext={() => handleStepCompletion(CheckpointStep.OTHER_DETAIL)}
-            initialData={getStepData(CheckpointStep.OTHER_DETAIL)}
-            isCompleted={isStepCompleted(CheckpointStep.OTHER_DETAIL)}
-          />
-        ),
+        )
       },
       {
         id: "bankaccountdetails",
@@ -408,16 +393,7 @@ const OnboardingCarousel = () => {
           />
         )
       },
-      { 
-        id: "nominee", 
-        component: (
-          <NomineeSelection 
-            onNext={handleNomineeNext}
-            initialData={getStepData(CheckpointStep.ADD_NOMINEES)}
-            isCompleted={isStepCompleted(CheckpointStep.ADD_NOMINEES)}
-          />
-        )
-      },
+      
     ];
 
     // Conditionally add PAN upload component

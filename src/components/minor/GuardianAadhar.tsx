@@ -1,12 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "../ui/button";
-import FormHeading from "./FormHeading";
+import FormHeading from "../forms/FormHeading";
 import axios from "axios";
 import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
-import { getApiEndpointByType } from "@/lib/utils";
-import { usePathname } from "next/navigation";
 
 const getDateRestrictions = () => {
   const today = new Date();
@@ -115,8 +113,6 @@ const AadhaarVerification = ({
     getStepData,
     refetchStep 
   } = useCheckpoint();
-
-  const pathname = usePathname();
 
   // Cleanup on unmount
   useEffect(() => {
@@ -343,7 +339,7 @@ const AadhaarVerification = ({
         // Step 1: First call the POST complete API to trigger completion check
         try {
           const completeResponse = await axios.post(
-            `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
             {
               step: "aadhaar"
             },
@@ -393,7 +389,7 @@ const AadhaarVerification = ({
 
         // Step 2: Now check actual completion status using GET API (same as useCheckpoint)
         const statusResponse = await axios.get(
-          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('aadhaarCheckpoint')}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint/aadhaar`,
           {
             headers: {
               Authorization: `Bearer ${authToken}`
@@ -498,7 +494,7 @@ const AadhaarVerification = ({
 
         // Initialize DigiLocker session
         const response = await axios.post(
-          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
           {
             step: "aadhaar_uri",
             redirect: redirectUrl
@@ -671,13 +667,11 @@ const AadhaarVerification = ({
       }
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
         {
           step: "aadhaar_mismatch_details",
-          aadhaar_data: {
-            full_name: mismatchFormData.full_name.trim(),
-            dob: mismatchFormData.dob
-          }
+          full_name: mismatchFormData.full_name.trim(),
+          dob: mismatchFormData.dob
         },
         {
           headers: {
@@ -767,11 +761,7 @@ const AadhaarVerification = ({
     return (
       <div className="mx-auto -mt-28 sm:mt-0 pt-20">
         <FormHeading
-          title={
-            pathname === "/minor"
-              ? "Verify Minor Aadhaar (DigiLocker)"
-              : "Verify Aadhaar (DigiLocker)"
-          }
+          title="Verify Aadhaar (DigiLocker)"
           description={loadingMessage}
         />
         <div className="flex items-center justify-center h-40">
@@ -846,16 +836,8 @@ const AadhaarVerification = ({
   return (
     <div className="mx-auto -mt-28 sm:mt-0 pt-20">
       <FormHeading
-        title={
-          pathname === "/minor"
-            ? "Verify Minor Aadhaar (DigiLocker)"
-            : "Verify Aadhaar (DigiLocker)"
-        }
-        description={
-          pathname === "/minor"
-            ? "Fast and easy Aadhaar-based verification for minors."
-            : "Fast and easy Aadhaar-based verification."
-        }
+        title={"Verify Guardian Aadhaar (DigiLocker)"}
+        description={"Fast and easy Aadhaar-based verification."}
       />
 
       <div className="bg-blue-50 p-6 rounded-lg mb-8">

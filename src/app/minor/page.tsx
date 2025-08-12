@@ -1,4 +1,4 @@
-import OnboardingCarousel from "@/components/new-signup/OnboardingCarousel";
+import OnboardingCarousel from "@/components/minor/OnboardingCarousel";
 import { Metadata } from "next";
 import React from "react";
 

@@ -6,6 +6,7 @@ import Cookies from 'js-cookie';
 import { useCheckpoint, CheckpointStep } from '@/hooks/useCheckpoint';
 import { toast } from "sonner";
 import { Button } from "../ui/button";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface SignatureComponentProps {
   onNext: () => void;
@@ -80,15 +81,10 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
 
       // Use the correct endpoint for signature initialization
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
-          step: "signature"
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${authToken}`
-          }
+          step: "signature",
+          signature_data: signatureData,
         }
       );
 
@@ -325,13 +321,12 @@ const SignatureComponent: React.FC<SignatureComponentProps> = ({
 
       // Use the correct PUT endpoint for signature upload
       await axios.put(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/signature/${signatureUid}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('signatureWithId')}/${signatureUid}`,
         formData,
         {
           headers: {
-            'Content-Type': 'multipart/form-data',
-            Authorization: `Bearer ${authToken}`
-          }
+            "Content-Type": "multipart/form-data",
+          },
         }
       );
       

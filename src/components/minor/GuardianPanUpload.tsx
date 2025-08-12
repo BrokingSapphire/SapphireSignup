@@ -1,11 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Upload, FileText, AlertCircle, CheckCircle, RefreshCw } from "lucide-react";
 import { Button } from "../ui/button";
-import FormHeading from "./FormHeading";
+import FormHeading from "../forms/FormHeading";
 import axios, { AxiosError } from "axios";
 import Cookies from 'js-cookie';
 import { toast } from "sonner";
-import { getApiEndpointByType } from "@/lib/utils";
 
 interface PanUploadComponentProps {
   onNext: () => void;
@@ -75,7 +74,7 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
       }
 
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
         {
           step: "pan_verification_record"
         },
@@ -228,7 +227,7 @@ const PanUploadComponent: React.FC<PanUploadComponentProps> = ({
       formData.append('pdf', uploadedFile);
 
       await axios.put(
-        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('panVerificationRecord')}/${uploadUid}`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/pan-verification-record/${uploadUid}`,
         formData,
         {
           headers: {

@@ -6,6 +6,7 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import { useCheckpoint, CheckpointStep } from "@/hooks/useCheckpoint";
 import { toast } from "sonner";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface UploadIncomeProofProps {
   onNext: (file?: File) => void;
@@ -39,11 +40,11 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
     const checkIncomeProofStatus = async () => {
       try {
         const response = await axios.get(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/income-proof`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('incomeProof')}`,
           {
             headers: {
-              Authorization: `Bearer ${Cookies.get('authToken')}`
-            }
+              Authorization: `Bearer ${Cookies.get('authToken')}`,
+            },
           }
         );
         
@@ -188,7 +189,7 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
       const incomeProofType = mapDocumentTypeToApi(selectedOption);
       
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "income_proof",
           income_proof_type: incomeProofType
@@ -271,7 +272,7 @@ const UploadIncomeProof: React.FC<UploadIncomeProofProps> = ({
         formData.append('pdf', selectedFile);
 
         const response = await axios.put(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/income-proof/${currentUid}`,
+          `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('incomeProofWithId')}/${currentUid}`,
           formData,
           {
             headers: {

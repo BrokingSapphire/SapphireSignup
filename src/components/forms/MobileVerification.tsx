@@ -4,6 +4,7 @@ import FormHeading from "./FormHeading";
 import axios, { AxiosError } from "axios";
 import { useAuthToken } from "@/hooks/useCheckpoint";
 import { toast } from "sonner";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface MobileVerificationProps {
   onNext: () => void;
@@ -214,11 +215,10 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/verify-otp`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('verifyOtp')}`,
         {
-          type: "phone",
-          phone: mobileNumber,
-          email: currentEmail,
+          type: "mobile",
+          mobile: mobileNumber,
           otp: otp.join(""),
         }
       );
@@ -260,7 +260,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       setIsLoading(false);
     }
   };
-
+  // const currentEmail = getEmailFromStorage();
   const handleSendOTP = async () => {
     if (!validateMobile(mobileNumber)) {
       toast.error("Please enter a valid 10-digit mobile number");
@@ -281,7 +281,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('requestOtp')}`,
         {
           type: "phone",
           email: currentEmail,
@@ -342,11 +342,10 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
 
     try {
       const response = await axios.post<ApiResponse>(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/request-otp`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('requestOtp')}`,
         {
-          type: "phone",
-          email: currentEmail,
-          phone: mobileNumber,
+          type: "mobile",
+          mobile: mobileNumber,
         }
       );
 

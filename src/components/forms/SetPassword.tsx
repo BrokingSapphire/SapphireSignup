@@ -5,6 +5,7 @@ import { Eye, EyeOff, Check, X } from "lucide-react";
 import axios from "axios";
 import Cookies from "js-cookie";
 import { toast } from "sonner";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface InitialData {
   client_id?: string;
@@ -123,7 +124,7 @@ const SetPassword: React.FC<SetPasswordProps> = ({
 
     try {
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/finalize`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('finalize')}`,
         {},
         {
           headers:{
@@ -176,7 +177,7 @@ const SetPassword: React.FC<SetPasswordProps> = ({
     try {
       // Use the setup-password API directly
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/setup-password`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('setupPassword')}`,
         {
           password: password,
           confirm_password: confirmPassword

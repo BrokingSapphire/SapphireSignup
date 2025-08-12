@@ -3,6 +3,7 @@ import { Button } from "../ui/button";
 import FormHeading from "./FormHeading";
 import axios from "axios";
 import Cookies from "js-cookie";
+import { getApiEndpointByType } from "@/lib/utils";
 
 interface TradingPreferencesProps {
   onNext: () => void;
@@ -227,16 +228,10 @@ const TradingPreferences: React.FC<TradingPreferencesProps> = ({
       const apiValues = mapToApiValues();
       
       const response = await axios.post(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/v1/auth/signup/checkpoint`,
+        `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "personal_detail",
-          ...apiValues
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${Cookies.get("authToken")}` 
-          }
+          personal_data: personalData,
         }
       );
 
