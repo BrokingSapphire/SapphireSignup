@@ -52,7 +52,7 @@ export const metadata: Metadata = {
     description:
       "Sapphire has a next-generation trading platform designed for investors seeking expert insights and advanced trading tools. Get professional trade recommendations and stay updated with real-time corporate announcements from all listed entities. Our high-tech features ensure seamless execution, empowering both beginners and experienced traders to make well-informed market decisions.",
     url: "https://sapphirebroking.com/",
-    images: [{ url: "https://www.sapphirebroking.com/logo-white.svg" }],
+    images: [{ url: "https://www.sapphirebroking.com/logo.svg" }],
     type: "website",
   },
   icons: {
