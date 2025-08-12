@@ -168,7 +168,7 @@ const PANVerify = ({ onNext, initialData, isCompleted, title, description }: PAN
         `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
         {
           step: "pan",
-          pan: panNumber,
+          pan_number: panNumber,
         },
         {
           headers: {

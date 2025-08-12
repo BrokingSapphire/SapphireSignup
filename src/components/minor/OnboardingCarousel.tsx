@@ -4,15 +4,15 @@ import LeftPanel from "./LeftPanel";
 import MobileVerification from "../forms/MobileVerification";
 import EmailVerification from "../forms/EmailVerification";
 import AadhaarVerification from "../forms/AadharVerification";
-import TradingAccountDetails from "../forms/TradingAccountDetails";
+
 import PANVerify from "../forms/PANVerify";
-import TradingAccountDetails2 from "../forms/TradingAccountDetails2";
+
 import IPVVerification from "../forms/IPV";
 
 import LastStepPage from "../forms/ESign";
 import CongratulationsPage from "../forms/Congratulations";
-import InvestmentSegment from "../forms/InvestmentSegment.tsx";
-import TradingPreferences from "../forms/TradingPreferences";
+
+
 import { ChevronDown, ChevronUp } from "lucide-react";
 import BankAccountLinking from "../forms/BankAccountLinking";
 import SignatureComponent from "../forms/Signature";
@@ -340,48 +340,7 @@ const OnboardingCarousel = () => {
           />
         )
       },
-      {
-        id: "investment segment",
-        component: (
-          <InvestmentSegment 
-            onNext={handleInvestmentNext}
-            initialData={getStepData(CheckpointStep.INVESTMENT_SEGMENT) ?? undefined}
-            isCompleted={isStepCompleted(CheckpointStep.INVESTMENT_SEGMENT)}
-          />
-        ),
-      },
-      { 
-        id: "trading", 
-        component: (
-          <TradingAccountDetails 
-            onNext={() => handleStepCompletion(CheckpointStep.USER_DETAIL)}
-            initialData={getStepData(CheckpointStep.USER_DETAIL) ?? undefined}
-            isCompleted={isStepCompleted(CheckpointStep.USER_DETAIL)}
-          />
-        )
-      },
-      // Guardian PAN verification step (after minor trading account detail)
       
-      {
-        id: "trading preference",
-        component: (
-          <TradingPreferences 
-            onNext={() => handleStepCompletion(CheckpointStep.PERSONAL_DETAIL)}
-            initialData={getStepData(CheckpointStep.PERSONAL_DETAIL)}
-            isCompleted={isStepCompleted(CheckpointStep.PERSONAL_DETAIL)}
-          />
-        ),
-      },
-      {
-        id: "trading2",
-        component: (
-          <TradingAccountDetails2 
-            onNext={() => handleStepCompletion(CheckpointStep.OTHER_DETAIL)}
-            initialData={getStepData(CheckpointStep.OTHER_DETAIL)}
-            isCompleted={isStepCompleted(CheckpointStep.OTHER_DETAIL)}
-          />
-        ),
-      },
       {
         id: "GuardianPanVerify",
         component: (

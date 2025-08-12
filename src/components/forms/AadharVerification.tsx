@@ -345,12 +345,7 @@ const AadhaarVerification = ({
           const completeResponse = await axios.post(
             `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('checkpoint')}`,
             {
-              step: "aadhaar",
-              aadhaar_data: {
-                pan_masked_aadhaar: panMaskedAadhaar,
-                digilocker_masked_aadhaar: undefined, // This will be updated by the GET call
-                requires_manual_review: false, // This will be updated by the GET call
-              },
+              step: "aadhaar"
             },
             {
               headers: {

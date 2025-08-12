@@ -260,7 +260,7 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       setIsLoading(false);
     }
   };
-
+  // const currentEmail = getEmailFromStorage();
   const handleSendOTP = async () => {
     if (!validateMobile(mobileNumber)) {
       toast.error("Please enter a valid 10-digit mobile number");
@@ -283,8 +283,9 @@ const MobileVerification = ({ onNext, initialData, isCompleted }: MobileVerifica
       const response = await axios.post<ApiResponse>(
         `${process.env.NEXT_PUBLIC_BASE_URL}${getApiEndpointByType('requestOtp')}`,
         {
-          type: "mobile",
-          mobile: mobileNumber,
+          type: "phone",
+          email: currentEmail,
+          phone: mobileNumber,
         }
       );
       if (!response) {
